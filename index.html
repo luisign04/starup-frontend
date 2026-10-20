@@ -1,73 +1,900 @@
 <!doctype html>
 <html lang="pt-BR">
-<head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#152c45">
-  <title>StarUP — demandas e soluções</title>
-  <link rel="manifest" href="/manifest.json"><link rel="icon" href="/icon.svg">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script>
-</head>
-<body>
-<header><a href="/" class="brand">StarUP</a><span>Conexões que viram soluções</span></header>
-<main>
-  <div id="network-status" role="status" hidden></div>
-  <div id="update-banner" hidden>Uma atualização está disponível. Salve seus formulários antes de atualizar. <button id="update-app">Atualizar</button></div>
-  <p id="notice" role="status" aria-live="polite"></p>
-  <section id="auth-panel">
-    <h1>Encontre quem resolve seu próximo desafio.</h1>
-    <p>Explore demandas reais e conheça startups avaliadas por seus clientes.</p>
-    <details><summary>Entrar</summary>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#151515" />
+    <meta
+      name="description"
+      content="Conecte desafios reais a startups. Descubra soluções, acompanhe propostas e transforme boas ideias em resultados."
+    />
+    <title>StarUP — conexões que geram resultados</title>
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="stylesheet" href="/app.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Pular para o conteúdo</a>
+    <aside class="sidebar" id="sidebar">
+      <a href="#inicio" class="brand" aria-label="StarUP início"
+        ><svg viewBox="0 0 32 32" aria-hidden="true">
+          <path
+            d="m17 2 4.2 9 9.8 1.2-7.2 6.7 1.9 9.7-8.7-5-8.7 5 1.8-9.7L3 12.2l9.8-1.2Z"
+            fill="currentColor"
+          />
+          <path
+            d="m3 30 14-16m-9 16 12-14"
+            stroke="#151515"
+            stroke-width="2.5"
+          /></svg
+        ><span
+          >Star<span class="brand-accent">UP</span
+          ><span class="brand-dot">.</span></span
+        ></a
+      >
+      <span class="nav-caption">SEU ECOSSISTEMA</span>
+      <nav aria-label="Navegação principal" id="main-nav">
+        <a href="#inicio" data-route="inicio"
+          ><span data-icon="grid"></span>Visão geral</a
+        >
+        <a href="#vitrine" data-route="vitrine"
+          ><span data-icon="compass"></span>Explorar vitrine<span
+            class="nav-tag"
+            >Explore</span
+          ></a
+        >
+        <a href="#demandas" data-route="demandas" data-role="CLIENT" hidden
+          ><span data-icon="briefcase"></span>Minhas demandas</a
+        >
+        <a
+          href="#propostas"
+          data-route="propostas"
+          data-member="workspace"
+          hidden
+          ><span data-icon="layers"></span
+          ><span id="workspace-nav-label">Propostas e entregas</span></a
+        >
+        <a href="#como-funciona" data-route="como-funciona"
+          ><span data-icon="route"></span>Como funciona</a
+        >
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="sidebar-invite" id="sidebar-invite">
+          <span class="mini-star">✦</span>
+          <h2>O próximo passo<br />começa com uma conexão.</h2>
+          <p>Faça parte de um ecossistema de soluções reais.</p>
+          <button class="btn btn-yellow" data-auth="register">
+            Começar agora <span data-icon="arrow"></span>
+          </button>
+        </div>
+        <a href="#conta" class="sidebar-settings" id="account-link" hidden
+          ><span data-icon="settings"></span>Minha conta</a
+        >
+        <a href="/privacy.html" class="sidebar-privacy"
+          ><span data-icon="shield"></span>Privacidade e segurança<span
+            data-icon="external"
+          ></span
+        ></a>
+        <div class="sidebar-footnote">
+          <span class="live-dot"></span>Conexões com propósito
+        </div>
+      </div>
+    </aside>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button
+            class="icon-button mobile-menu"
+            id="menu-toggle"
+            aria-label="Abrir navegação"
+            aria-expanded="false"
+            aria-controls="sidebar"
+          >
+            <span data-icon="menu"></span></button
+          ><span class="breadcrumb"
+            >Ecossistema <span>/</span>
+            <strong id="breadcrumb-current">Visão geral</strong></span
+          >
+        </div>
+        <div class="topbar-actions">
+          <span class="today" id="today"></span
+          ><button class="btn btn-text" data-auth="login" id="header-login">
+            Entrar <span data-icon="arrow"></span></button
+          ><button class="account-chip" id="account-chip" hidden>
+            <span class="avatar" id="header-avatar"></span
+            ><span id="header-name"></span><span data-icon="chevron"></span>
+          </button>
+        </div>
+      </header>
+      <main id="main-content" tabindex="-1">
+        <div id="network-status" class="banner" role="status" hidden></div>
+        <div id="update-banner" class="banner" hidden>
+          <span
+            >Uma nova versão está disponível. Salve seus formulários antes de
+            atualizar.</span
+          ><button class="btn btn-small" id="update-app">Atualizar</button>
+        </div>
+        <div id="notice" role="status" aria-live="polite" hidden>
+          <span id="notice-text"></span
+          ><button
+            class="icon-button"
+            id="dismiss-notice"
+            aria-label="Fechar aviso"
+          >
+            ×
+          </button>
+        </div>
+
+        <section id="home-view" class="view" aria-labelledby="home-title">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">BEM-VINDO À STARUP</p>
+              <h1 id="home-title">
+                O seu próximo passo está aqui<span class="yellow-text">.</span>
+              </h1>
+              <p>Conecte desafios a quem tem boas ideias para resolvê-los.</p>
+            </div>
+            <span class="outline-label"
+              ><span class="live-dot"></span>Ideias em movimento</span
+            >
+          </div>
+          <div class="hero">
+            <div class="hero-content">
+              <span class="hero-kicker"
+                ><span class="mini-star">✦</span> MENOS PROMESSAS. MAIS
+                CONEXÕES.</span
+              >
+              <h2>
+                Grandes ideias.<br />Resultados
+                <span class="hero-emphasis"
+                  >reais<svg viewBox="0 0 270 14" aria-hidden="true">
+                    <path d="M3 10Q130-3 265 8" /></svg
+                ></span>
+              </h2>
+              <p>
+                Startups com soluções. Pessoas com desafios.<br />O lugar onde
+                as duas se encontram.
+              </p>
+              <a href="#vitrine" class="btn btn-dark"
+                >Explorar oportunidades <span data-icon="arrow"></span
+              ></a>
+            </div>
+            <div class="hero-art" aria-hidden="true">
+              <svg viewBox="0 0 460 310">
+                <defs>
+                  <pattern
+                    id="dot-grid"
+                    width="22"
+                    height="22"
+                    patternUnits="userSpaceOnUse"
+                  >
+                    <circle cx="1" cy="1" r="1" fill="#a98d25" opacity=".28" />
+                  </pattern>
+                </defs>
+                <rect width="460" height="310" fill="url(#dot-grid)" />
+                <circle
+                  cx="240"
+                  cy="155"
+                  r="117"
+                  fill="none"
+                  stroke="#181818"
+                  stroke-opacity=".12"
+                  stroke-dasharray="5 6"
+                />
+                <circle
+                  cx="240"
+                  cy="155"
+                  r="72"
+                  fill="none"
+                  stroke="#181818"
+                  stroke-opacity=".12"
+                />
+                <path
+                  d="M126 80 240 155 365 78M240 155l-94 95m94-95 117 90"
+                  fill="none"
+                  stroke="#181818"
+                  stroke-opacity=".3"
+                  stroke-width="1.5"
+                />
+                <g fill="#f9f7ef" stroke="#181818" stroke-width="1.2">
+                  <rect x="86" y="43" width="80" height="73" rx="16" />
+                  <rect x="323" y="42" width="80" height="73" rx="16" />
+                  <rect x="104" y="217" width="80" height="69" rx="16" />
+                  <rect x="316" y="211" width="80" height="69" rx="16" />
+                </g>
+                <g
+                  stroke="#181818"
+                  stroke-width="2.3"
+                  fill="none"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="m113 89 12-25 13 25m-20-8h15m217-17h25v27h-25zM345 73h34m-18-9v27m-233 151h30v24h-30zm6 0v-6h18v6m186-4 9 9 17-17m-25 29h25"
+                  />
+                </g>
+                <rect
+                  x="194"
+                  y="109"
+                  width="92"
+                  height="92"
+                  rx="24"
+                  fill="#181818"
+                  transform="rotate(-8 240 155)"
+                />
+                <path
+                  d="m242 122 10 21 23 3-17 16 4 24-20-12-21 12 4-24-17-16 24-3Z"
+                  fill="#f9d83a"
+                />
+                <path d="m201 199 42-47" stroke="#f9d83a" stroke-width="4" />
+                <circle cx="198" cy="57" r="5" fill="#181818" />
+                <circle cx="290" cy="261" r="5" fill="#181818" />
+                <path
+                  d="M404 159h16m-8-8v16M68 183h12m-6-6v12"
+                  stroke="#181818"
+                  stroke-width="2"
+                /></svg
+              ><span class="art-caption"
+                ><span class="live-dot"></span>Uma boa conexão muda tudo.</span
+              >
+            </div>
+          </div>
+          <div class="section-heading">
+            <div>
+              <h2>Um ecossistema de possibilidades</h2>
+              <p>Um retrato dos conteúdos carregados da vitrine.</p>
+            </div>
+            <a href="#como-funciona" class="text-link"
+              >Entenda a StarUP <span data-icon="arrow"></span
+            ></a>
+          </div>
+          <div class="stats-grid">
+            <article class="stat-card">
+              <span class="stat-icon" data-icon="briefcase"></span>
+              <div>
+                <span class="stat-label">Demandas na vitrine</span
+                ><strong id="stat-demands">—</strong>
+              </div>
+              <span class="stat-caption"
+                >Desafios que precisam de soluções</span
+              >
+            </article>
+            <article class="stat-card">
+              <span class="stat-icon" data-icon="rocket"></span>
+              <div>
+                <span class="stat-label">Startups na vitrine</span
+                ><strong id="stat-startups">—</strong>
+              </div>
+              <span class="stat-caption">Boas ideias para conhecer</span>
+            </article>
+            <article class="stat-card">
+              <span class="stat-icon" data-icon="star"></span>
+              <div>
+                <span class="stat-label">Soluções avaliadas</span
+                ><strong id="stat-reviews">—</strong>
+              </div>
+              <span class="stat-caption"
+                >Resultados reconhecidos por clientes</span
+              >
+            </article>
+          </div>
+        </section>
+
+        <section id="market-view" class="view" aria-labelledby="feed-title">
+          <div class="section-heading market-heading">
+            <div>
+              <p class="eyebrow" id="market-eyebrow">CONEXÕES QUE IMPORTAM</p>
+              <h2 id="feed-title">Explore o que está acontecendo</h2>
+              <p id="market-description">
+                Encontre uma oportunidade para começar algo bom.
+              </p>
+            </div>
+            <div class="heading-actions">
+              <button class="btn btn-outline btn-small" id="refresh-feed">
+                <span data-icon="refresh"></span>Atualizar</button
+              ><button class="btn btn-dark btn-small" id="publish-cta">
+                <span data-icon="plus"></span>Publicar demanda
+              </button>
+            </div>
+          </div>
+          <div class="market-layout">
+            <div class="market-main">
+              <div class="filter-bar">
+                <div
+                  class="tabs"
+                  role="group"
+                  aria-label="Filtrar vitrine por tipo"
+                >
+                  <button
+                    class="tab active"
+                    data-filter="ALL"
+                    aria-pressed="true"
+                  >
+                    Tudo</button
+                  ><button
+                    class="tab"
+                    data-filter="DEMAND"
+                    aria-pressed="false"
+                  >
+                    Demandas</button
+                  ><button
+                    class="tab"
+                    data-filter="STARTUP"
+                    aria-pressed="false"
+                  >
+                    Startups</button
+                  ><button
+                    class="tab"
+                    data-filter="REVIEWED_SOLUTION"
+                    aria-pressed="false"
+                  >
+                    Resultados
+                  </button>
+                </div>
+                <label class="search-field"
+                  ><span data-icon="search"></span
+                  ><input
+                    type="search"
+                    id="feed-search"
+                    placeholder="Buscar na vitrine"
+                    aria-label="Buscar nos conteúdos carregados"
+                /></label>
+              </div>
+              <p id="feed-status" class="feed-status" aria-live="polite">
+                Carregando oportunidades…
+              </p>
+              <div id="feed" class="feed-grid" aria-busy="true"></div>
+              <div class="feed-bottom">
+                <button class="btn btn-outline" id="more-feed" hidden>
+                  Carregar mais <span data-icon="plus"></span></button
+                ><a href="#vitrine" id="see-all-feed" class="text-link"
+                  >Ver toda a vitrine <span data-icon="arrow"></span
+                ></a>
+              </div>
+            </div>
+            <aside class="market-aside">
+              <div class="how-card">
+                <span class="eyebrow">DO DESAFIO À SOLUÇÃO</span>
+                <h3>Conexões que<br />saem do papel.</h3>
+                <ol class="mini-steps">
+                  <li>
+                    <span>01</span>
+                    <div>
+                      <strong>Um desafio real</strong>
+                      <p>Clientes compartilham o que precisam resolver.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span>02</span>
+                    <div>
+                      <strong>Uma boa proposta</strong>
+                      <p>Startups mostram como podem ajudar.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span>03</span>
+                    <div>
+                      <strong>Um resultado concreto</strong>
+                      <p>A entrega acontece e o cliente avalia.</p>
+                    </div>
+                  </li>
+                </ol>
+                <a href="#como-funciona" class="text-link"
+                  >Conheça o processo <span data-icon="arrow"></span
+                ></a>
+              </div>
+              <div class="privacy-card">
+                <span data-icon="shield"></span>
+                <div>
+                  <h3>Explore com tranquilidade</h3>
+                  <p>
+                    O perfil de investidor tem leitura privada. Sua identidade
+                    não aparece na vitrine.
+                  </p>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section
+          id="demands-view"
+          class="view"
+          hidden
+          aria-labelledby="demands-title"
+        >
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">DO DESAFIO À OPORTUNIDADE</p>
+              <h1 id="demands-title">
+                Minhas demandas<span class="yellow-text">.</span>
+              </h1>
+              <p>Gerencie seus desafios, visibilidade e propostas recebidas.</p>
+            </div>
+            <button class="btn btn-dark" id="new-demand">
+              <span data-icon="plus"></span>Nova demanda
+            </button>
+          </div>
+          <div
+            class="tabs standalone-tabs"
+            role="group"
+            aria-label="Filtrar minhas demandas"
+          >
+            <button
+              class="tab active"
+              data-demand-filter="ALL"
+              aria-pressed="true"
+            >
+              Todas</button
+            ><button
+              class="tab"
+              data-demand-filter="PUBLIC"
+              aria-pressed="false"
+            >
+              Públicas</button
+            ><button
+              class="tab"
+              data-demand-filter="PRIVATE"
+              aria-pressed="false"
+            >
+              Privadas
+            </button>
+          </div>
+          <div id="own-demands" class="feed-grid"></div>
+          <button id="more-demands" class="btn btn-outline" hidden>
+            Carregar mais demandas
+          </button>
+        </section>
+        <section
+          id="workspace-view"
+          class="view"
+          hidden
+          aria-labelledby="workspace-title"
+        >
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">ACOMPANHE CADA PASSO</p>
+              <h1 id="workspace-title">
+                Propostas e entregas<span class="yellow-text">.</span>
+              </h1>
+              <p id="workspace-description">
+                Da primeira proposta ao resultado final.
+              </p>
+            </div>
+            <button class="btn btn-outline btn-small" id="refresh-workspace">
+              <span data-icon="refresh"></span>Atualizar
+            </button>
+          </div>
+          <div id="workspace-summary" class="workspace-summary"></div>
+          <div id="solutions" class="workspace-grid"></div>
+          <button class="btn btn-outline" id="more-solutions" hidden>
+            Carregar mais propostas
+          </button>
+        </section>
+        <section id="how-view" class="view" hidden aria-labelledby="how-title">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">SIMPLES DO INÍCIO AO RESULTADO</p>
+              <h1 id="how-title">
+                Boas ideias merecem uma chance<span class="yellow-text">.</span>
+              </h1>
+              <p>
+                A StarUP aproxima quem tem um desafio de quem pode resolvê-lo.
+              </p>
+            </div>
+          </div>
+          <div class="process-grid">
+            <article>
+              <span class="process-number">01</span
+              ><span data-icon="briefcase"></span>
+              <h2>Compartilhe um desafio</h2>
+              <p>
+                Como cliente, descreva sua necessidade e escolha uma categoria.
+                Publique na vitrine para receber propostas de startups.
+              </p>
+            </article>
+            <article>
+              <span class="process-number">02</span
+              ><span data-icon="rocket"></span>
+              <h2>Encontre uma solução</h2>
+              <p>
+                Startups enviam propostas para demandas abertas. O cliente
+                escolhe a que faz sentido e a startup inicia o trabalho.
+              </p>
+            </article>
+            <article>
+              <span class="process-number">03</span
+              ><span data-icon="star"></span>
+              <h2>Transforme em resultado</h2>
+              <p>
+                A startup registra a entrega. O cliente confirma o resultado com
+                uma avaliação de 1 a 5 estrelas.
+              </p>
+            </article>
+          </div>
+          <div class="roles-section">
+            <h2>Qual é o seu próximo passo?</h2>
+            <div class="role-cards">
+              <button data-join-role="STARTUP">
+                <span data-icon="rocket"></span><strong>Sou startup</strong
+                ><span
+                  >Encontre desafios reais e mostre o valor da sua
+                  solução.</span
+                ><span class="text-link"
+                  >Quero oferecer soluções ↗</span
+                ></button
+              ><button data-join-role="CLIENT">
+                <span data-icon="briefcase"></span><strong>Sou cliente</strong
+                ><span
+                  >Compartilhe uma necessidade e conheça quem pode ajudar.</span
+                ><span class="text-link"
+                  >Quero resolver um desafio ↗</span
+                ></button
+              ><button data-join-role="INVESTOR">
+                <span data-icon="eye"></span><strong>Sou investidor</strong
+                ><span
+                  >Explore startups e resultados com sua identidade
+                  privada.</span
+                ><span class="text-link">Quero conhecer o ecossistema ↗</span>
+              </button>
+            </div>
+          </div>
+        </section>
+        <section
+          id="account-view"
+          class="view"
+          hidden
+          aria-labelledby="account-title"
+        >
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">SEU ESPAÇO NA STARUP</p>
+              <h1 id="account-title">
+                Minha conta<span class="yellow-text">.</span>
+              </h1>
+              <p>Gerencie seu perfil e suas preferências.</p>
+            </div>
+            <button class="btn btn-outline" id="logout">
+              <span data-icon="logout"></span>Sair da conta
+            </button>
+          </div>
+          <div class="account-layout">
+            <div>
+              <article class="surface account-info">
+                <span class="avatar avatar-large" id="profile-avatar"></span>
+                <div>
+                  <h2 id="profile-name"></h2>
+                  <p id="profile-email"></p>
+                  <span class="badge" id="profile-role"></span>
+                </div>
+              </article>
+              <form id="profile-form" class="surface" hidden>
+                <h2>Perfil público da startup</h2>
+                <p class="muted">
+                  Estas informações aparecem para quem explora a vitrine.
+                </p>
+                <label
+                  >Nome da startup<input
+                    name="name"
+                    required
+                    maxlength="100" /></label
+                ><label
+                  >Descrição curta<textarea
+                    name="description"
+                    maxlength="300"
+                    rows="3"
+                  ></textarea></label
+                ><label
+                  >Site<input
+                    name="website"
+                    type="url"
+                    placeholder="https://sua-startup.com.br"
+                    maxlength="200" /></label
+                ><button class="btn btn-dark">
+                  Salvar alterações <span data-icon="check"></span>
+                </button>
+              </form>
+            </div>
+            <div>
+              <article class="surface">
+                <span class="section-icon" data-icon="bell"></span>
+                <h2>Fique por dentro</h2>
+                <p>
+                  Receba avisos sobre atualizações na plataforma. As
+                  notificações não exibem dados pessoais.
+                </p>
+                <div class="stack-actions">
+                  <button class="btn btn-dark" id="enable-push">
+                    Ativar notificações</button
+                  ><button class="btn btn-outline" id="disable-push">
+                    Desativar notificações
+                  </button>
+                </div>
+              </article>
+              <article class="surface danger-zone">
+                <h2>Excluir conta</h2>
+                <p>
+                  Remove seus identificadores e retira o conteúdo da vitrine. O
+                  histórico mínimo de avaliações é preservado sem identidade
+                  pública.
+                </p>
+                <button class="btn btn-danger" id="erase-account">
+                  Excluir minha conta
+                </button>
+              </article>
+            </div>
+          </div>
+        </section>
+        <footer class="footer">
+          <span class="footer-brand">Star<span>UP</span>.</span>
+          <p>Boas conexões. Resultados reais.</p>
+          <a href="/privacy.html"
+            >Política de privacidade <span data-icon="external"></span
+          ></a>
+        </footer>
+      </main>
+    </div>
+    <button
+      class="sidebar-scrim"
+      id="sidebar-scrim"
+      aria-label="Fechar navegação"
+      hidden
+    ></button>
+    <dialog
+      id="auth-dialog"
+      class="modal auth-modal"
+      aria-labelledby="auth-title"
+    >
+      <div class="modal-header">
+        <a href="#inicio" class="brand modal-brand"
+          >Star<span class="brand-accent">UP</span>.</a
+        ><button class="icon-button" data-close-dialog aria-label="Fechar">
+          ×
+        </button>
+      </div>
+      <div class="auth-tabs">
+        <button class="active" data-auth-tab="login">Entrar</button
+        ><button data-auth-tab="register">Criar conta</button>
+      </div>
+      <h2 id="auth-title">Que bom ter você por aqui.</h2>
+      <p id="auth-description" class="muted">
+        Entre para continuar suas conexões.
+      </p>
+      <p class="form-feedback" role="status" aria-live="polite" hidden></p>
       <form id="login-form">
-        <label>E-mail<input name="email" type="email" autocomplete="username" required maxlength="255"></label>
-        <label>Senha<input name="password" type="password" autocomplete="current-password" required maxlength="128"></label>
-        <button>Entrar</button>
+        <label
+          >E-mail<input
+            name="email"
+            type="email"
+            autocomplete="username"
+            required
+            maxlength="255"
+            placeholder="voce@empresa.com.br" /></label
+        ><label
+          >Senha<span class="password-field"
+            ><input
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              maxlength="128"
+              placeholder="Sua senha" /><button
+              type="button"
+              class="icon-button password-toggle"
+              aria-label="Mostrar senha"
+            >
+              <span data-icon="eye"></span></button></span></label
+        ><button class="btn btn-dark btn-full">
+          Entrar na StarUP <span data-icon="arrow"></span>
+        </button>
       </form>
-    </details>
-    <details><summary>Criar conta</summary>
-      <form id="register-form">
-        <label>Quero participar como<select name="role"><option value="CLIENT">Cliente</option><option value="STARTUP">Startup</option><option value="INVESTOR">Investidor — leitura privada</option></select></label>
-        <label>E-mail<input name="email" type="email" autocomplete="email" required maxlength="255"></label>
-        <label>Senha<input name="password" type="password" autocomplete="new-password" required minlength="8" maxlength="128"></label>
-        <div data-registration="CLIENT">
-          <label>Tipo de cliente<select name="person_type"><option value="PF">Pessoa física</option><option value="PJ">Pessoa jurídica</option></select></label>
-          <label>CPF ou CNPJ<input name="document" maxlength="32"></label>
-          <label>Nome de apresentação<input name="display_name" maxlength="120"></label>
+      <form id="register-form" hidden>
+        <fieldset class="register-roles">
+          <legend>Como você quer participar?</legend>
+          <label
+            ><input type="radio" name="role" value="STARTUP" /><span
+              ><span data-icon="rocket"></span>Startup</span
+            ></label
+          ><label
+            ><input type="radio" name="role" value="CLIENT" checked /><span
+              ><span data-icon="briefcase"></span>Cliente</span
+            ></label
+          ><label
+            ><input type="radio" name="role" value="INVESTOR" /><span
+              ><span data-icon="eye"></span>Investidor</span
+            ></label
+          >
+        </fieldset>
+        <label
+          >E-mail<input
+            name="email"
+            type="email"
+            autocomplete="email"
+            required
+            maxlength="255"
+            placeholder="voce@empresa.com.br" /></label
+        ><label
+          >Senha<span class="password-field"
+            ><input
+              name="password"
+              type="password"
+              autocomplete="new-password"
+              required
+              minlength="8"
+              maxlength="128"
+              placeholder="Pelo menos 8 caracteres" /><button
+              type="button"
+              class="icon-button password-toggle"
+              aria-label="Mostrar senha"
+            >
+              <span data-icon="eye"></span></button></span
+          ><small
+            >Combine letras, números e símbolos. Evite senhas comuns.</small
+          ></label
+        >
+        <div data-registration="CLIENT" class="form-group">
+          <label
+            >Tipo de cliente<select name="person_type">
+              <option value="PF">Pessoa física</option>
+              <option value="PJ">Pessoa jurídica</option>
+            </select></label
+          ><label id="document-label"
+            >CPF<input
+              name="document"
+              required
+              maxlength="32"
+              inputmode="numeric"
+              placeholder="000.000.000-00"
+              autocomplete="off" /></label
+          ><label
+            >Nome de apresentação<input
+              name="display_name"
+              required
+              maxlength="120"
+              autocomplete="name"
+              placeholder="Como podemos chamar você?"
+          /></label>
         </div>
-        <div data-registration="STARTUP" hidden>
-          <label>Nome da startup<input name="startup_name" maxlength="100"></label>
-          <label>Descrição curta<textarea name="description" maxlength="300"></textarea></label>
-          <label>Site<input name="website" type="url"></label>
+        <div data-registration="STARTUP" class="form-group" hidden>
+          <label
+            >Nome da startup<input
+              name="startup_name"
+              required
+              maxlength="100"
+              placeholder="O nome da sua ideia" /></label
+          ><label
+            >Descrição curta<textarea
+              name="description"
+              maxlength="300"
+              rows="3"
+              placeholder="O que sua startup resolve?"
+            ></textarea></label
+          ><label
+            >Site <span class="optional">(opcional)</span
+            ><input
+              name="website"
+              type="url"
+              maxlength="200"
+              placeholder="https://sua-startup.com.br"
+          /></label>
         </div>
-        <p data-registration="INVESTOR" hidden>Seu cadastro e sua atividade de leitura não aparecem para outros usuários. Não coletamos CPF, CNPJ, cargo ou fundo neste modo.</p>
-        <label class="check"><input name="policy" type="checkbox" required> Li a <a href="/privacy.html" target="_blank" rel="noopener">política de privacidade</a>.</label>
-        <button>Criar conta</button>
+        <div data-registration="INVESTOR" class="privacy-note" hidden>
+          <span data-icon="shield"></span>
+          <p>
+            Seu perfil tem leitura privada. Não pedimos documento, cargo ou
+            fundo, e sua identidade não aparece para outros usuários.
+          </p>
+        </div>
+        <label class="check"
+          ><input name="policy" type="checkbox" required /><span
+            >Li a
+            <a href="/privacy.html" target="_blank" rel="noopener"
+              >política de privacidade</a
+            >
+            da StarUP.</span
+          ></label
+        ><button class="btn btn-dark btn-full">
+          Criar minha conta <span data-icon="arrow"></span>
+        </button>
       </form>
-    </details>
-  </section>
-  <section id="account-panel" hidden>
-    <div class="row"><h1 id="account-title"></h1><button id="logout" class="secondary">Sair</button></div>
-    <button id="enable-push" class="secondary">Ativar notificações</button>
-    <button id="disable-push" class="secondary">Desativar notificações</button>
-    <details><summary>Gerenciar conta</summary><p>A exclusão remove seus identificadores e retira conteúdo do feed. O histórico mínimo de avaliações é preservado sem identidade pública.</p><button id="erase-account" class="danger">Excluir minha conta</button></details>
-  </section>
-  <section id="demand-panel" hidden>
-    <details><summary>Publicar uma demanda</summary>
+      <p class="auth-footnote">
+        <span data-icon="shield"></span>Seus dados protegidos. Suas conexões com
+        propósito.
+      </p>
+    </dialog>
+    <dialog
+      id="demand-dialog"
+      class="modal"
+      aria-labelledby="demand-form-title"
+    >
+      <div class="modal-header">
+        <span class="eyebrow">COMPARTILHE UM DESAFIO</span
+        ><button class="icon-button" data-close-dialog aria-label="Fechar">
+          ×
+        </button>
+      </div>
+      <h2 id="demand-form-title">O que você precisa resolver?</h2>
+      <p class="muted">
+        Uma boa descrição é o primeiro passo para uma boa conexão.
+      </p>
+      <p class="form-feedback" role="status" aria-live="polite" hidden></p>
       <form id="demand-form">
-        <label>Título<input name="title" required maxlength="160"></label>
-        <label>Descrição<textarea name="description" required maxlength="10000"></textarea></label>
-        <label>Categoria<select name="category_id" id="category-select" required></select></label>
-        <label>Visibilidade<select name="visibility"><option value="PUBLIC">Pública — aparece no feed</option><option value="PRIVATE">Privada — somente você; publique para receber propostas</option></select></label>
-        <button>Publicar demanda</button>
+        <label
+          >Título da demanda<input
+            name="title"
+            required
+            maxlength="160"
+            placeholder="Ex.: Simplificar o controle de estoque" /></label
+        ><label
+          >Descrição<textarea
+            name="description"
+            required
+            maxlength="10000"
+            rows="5"
+            placeholder="Conte o desafio, o contexto e o resultado que você espera alcançar."
+          ></textarea></label
+        ><label
+          >Categoria<select name="category_id" id="category-select" required>
+            <option value="">Selecione uma categoria</option>
+          </select></label
+        >
+        <fieldset class="visibility-options">
+          <legend>Quem pode ver esta demanda?</legend>
+          <label
+            ><input
+              type="radio"
+              name="visibility"
+              value="PUBLIC"
+              checked /><span
+              ><strong>Pública</strong
+              ><small>Aparece na vitrine e recebe propostas.</small></span
+            ><span data-icon="globe"></span></label
+          ><label
+            ><input type="radio" name="visibility" value="PRIVATE" /><span
+              ><strong>Privada</strong
+              ><small>Visível apenas para você até publicar.</small></span
+            ><span data-icon="lock"></span
+          ></label>
+        </fieldset>
+        <button class="btn btn-dark btn-full" id="demand-submit">
+          Publicar demanda <span data-icon="arrow"></span>
+        </button>
       </form>
-    </details>
-  </section>
-  <section id="workspace-panel" hidden><h2>Minhas propostas e entregas</h2><div id="solutions"></div></section>
-  <section aria-labelledby="feed-title">
-    <div class="row"><h2 id="feed-title">Vitrine</h2><button id="refresh-feed" class="secondary">Atualizar</button></div>
-    <p id="feed-status" class="muted"></p><div id="feed"></div><button id="more-feed" hidden>Carregar mais</button>
-  </section>
-  <section id="private-demands-panel" hidden><h2>Minhas demandas privadas</h2><div id="private-demands"></div></section>
-</main>
-<footer>Demandas reais. Soluções validadas. <a href="/privacy.html">Privacidade</a></footer>
-</body></html>
+    </dialog>
+    <dialog
+      id="detail-dialog"
+      class="modal detail-modal"
+      aria-labelledby="detail-title"
+    >
+      <div class="modal-header">
+        <span class="eyebrow" id="detail-kind"></span
+        ><button class="icon-button" data-close-dialog aria-label="Fechar">
+          ×
+        </button>
+      </div>
+      <div id="detail-content"></div>
+      <p class="form-feedback" role="status" aria-live="polite" hidden></p>
+    </dialog>
+    <dialog
+      id="confirm-dialog"
+      class="modal confirm-modal"
+      aria-labelledby="confirm-title"
+    >
+      <div class="modal-header">
+        <span class="section-icon" data-icon="shield"></span
+        ><button class="icon-button" data-close-dialog aria-label="Fechar">
+          ×
+        </button>
+      </div>
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-description"></p>
+      <p class="form-feedback" role="status" hidden></p>
+      <div class="heading-actions">
+        <button class="btn btn-outline" data-close-dialog>Voltar</button
+        ><button class="btn btn-dark" id="confirm-action">Confirmar</button>
+      </div>
+    </dialog>
+  </body>
+</html>
