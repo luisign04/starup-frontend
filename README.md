@@ -17,11 +17,12 @@ Não abra `index.html` diretamente. Um servidor estático separado precisa de pr
 
 ## Recursos
 
-- Visão geral, vitrine pública, busca sem acentos e filtros por tipo nos conteúdos carregados; paginação explícita. Os indicadores representam os conteúdos carregados, não totais globais.
+- Visão geral com apresentação e tutoriais; vitrine em uma coluna de publicações completas, com autoria, links de perfil, datas, status, imagens, tags e avaliações reais. Filtros por tipo e tag na API, busca sem acentos nos conteúdos carregados e paginação explícita. Os indicadores representam os conteúdos carregados, não totais globais.
 - Login e cadastro por papel: cliente, startup e investidor com leitura privada. Os campos e ações respeitam os contratos do backend.
-- Clientes: criar e editar demandas abertas, alterar visibilidade, cancelar, aceitar ou rejeitar propostas e confirmar entregas com avaliação.
-- Startups: enviar propostas, retirar propostas pendentes, iniciar execução, registrar entrega e editar nome, descrição e site do perfil público.
-- Investidores: explorar demandas, startups e resultados, sem ações de publicação ou acesso a propostas privadas.
+- Clientes: página própria para criar e editar demandas abertas, com até 8 tags de 30 caracteres e 4 imagens JPEG, PNG ou WebP de até 5 MB. Rascunhos ficam apenas na memória da aba durante a navegação e são limpos ao sair. Também é possível alterar visibilidade, cancelar, aceitar ou rejeitar propostas e confirmar entregas com avaliação.
+- Startups: enviar propostas, retirar propostas pendentes, iniciar execução, registrar entrega e editar nome, descrição, site e setor do perfil público. O setor também pode ser escolhido no cadastro.
+- Matchmaking: vitrine de tração pública, demandas recomendadas para startups e startups compatíveis por demanda do cliente. O botão **Encontrar startups** em Minhas demandas abre o ranking específico. Recomendações já propostas são removidas imediatamente após o envio. As métricas usam avaliações de clientes e entregas concluídas; impacto econômico é uma estimativa do histórico, sem auditoria independente.
+- Investidores: explorar demandas, startups e resultados, abrir perfis públicos de startups e clientes, filtrar seus históricos de demandas públicas e consultar avaliações de 1 a 5 estrelas, sem ações de publicação ou acesso a propostas privadas. Nas páginas de clientes, as notas correspondem às entregas que eles avaliaram.
 - Conta, notificações push opcionais e exclusão com confirmação.
 - Navegação por hash, menu mobile, foco de teclado, diálogos nativos, mensagens acessíveis e preferência por movimento reduzido.
 
@@ -39,7 +40,7 @@ Não há dependências JavaScript em tempo de execução, fontes externas nem CD
 
 ## Offline e atualização
 
-A vitrine prioriza a rede e usa uma cópia pública de até 24 horas quando a conexão falha. Sessão, identidade, propostas e entregas não entram no cache da PWA. Sair ou excluir a conta limpa os dados mantidos pela interface e o cache da vitrine. Nenhuma ação de escrita é enfileirada offline.
+A vitrine prioriza a rede e usa uma cópia pública de até 24 horas quando a conexão falha. Sessão, identidade, propostas, perfis públicos completos e imagens não entram no cache da PWA. As imagens de demandas são consultadas pela API conforme suas permissões; a vitrine salva pode ser lida offline sem suas imagens. Sair ou excluir a conta limpa os dados mantidos pela interface e o cache da vitrine. Nenhuma ação de escrita é enfileirada offline.
 
 Para mudanças no shell, incremente `VERSION` em `service-worker.js` e atualize as referências correspondentes nos testes. Uma nova versão aguarda o usuário confirmar **Atualizar**, preservando formulários em andamento. O identificador de instalação continua `/`; a compatibilidade com caches da marca anterior foi preservada.
 
@@ -50,9 +51,9 @@ Com Node.js disponível:
 ```bash
 node --check app.js
 node --check service-worker.js
-node --test tests/service-worker.test.cjs
+node --test tests/*.test.cjs
 ```
 
-O redesign foi verificado no navegador com API Django e banco SQLite temporário, separado do banco existente: login, criação de demanda, envio e aceite de proposta, início, entrega e avaliação. Os três cadastros, edição do perfil, permissões, visibilidade e cancelamento também foram exercitados pela API. Os testes unitários do worker cobrem privacidade, atualização, expiração e fallback offline. A suíte PostgreSQL do backend não é substituída por essa verificação de interface.
+A versão atual foi verificada no navegador com API Django, Redis e banco PostgreSQL 16.15 local, separado de qualquer banco de produção: login, criação de demanda, envio e aceite de proposta, início, entrega e avaliação. Os três cadastros, edição do perfil, permissões, visibilidade e cancelamento também foram exercitados pela API. Os testes do cliente cobrem envio de proposta a partir das recomendações, rankings por demanda, escolha de setor, concorrência entre abas e respostas tardias após sair da conta; também cobrem publicações enriquecidas, perfis públicos, multipart, limites de tags e imagens, limpeza de rascunhos e navegação entre páginas. Os testes unitários do worker cobrem privacidade (incluindo endpoints de matchmaking), atualização, expiração e fallback offline. A suíte PostgreSQL do backend não é substituída por essa verificação de interface.
 
 Os créditos originais em `LICENSE` foram preservados.
