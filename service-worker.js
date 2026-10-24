@@ -1,6 +1,6 @@
 /* Cache only the public shell and credential-independent feed. */
 "use strict";
-const VERSION = "starup-v8";
+const VERSION = "starup-v10";
 const SHELL_CACHE = VERSION + "-shell";
 const FEED_CACHE = VERSION + "-feed";
 const FEED_TTL_MS = 24 * 60 * 60 * 1000;

@@ -87,6 +87,7 @@ const fieldLabels = {
   title: "Título",
   description: "Descrição",
   category_id: "Categoria",
+  category: "Setor da startup",
   website: "Site",
   proposal: "Proposta",
   delivery: "Entrega",
@@ -101,6 +102,7 @@ let account = null,
 let feed = [],
   nextFeed = null,
   feedFilter = "ALL",
+  feedTag = "",
   feedLoaded = false,
   cachedAt = null;
 let solutions = [],
@@ -112,12 +114,27 @@ let categories = [],
   editingDemand = null,
   confirmHandler = null,
   feedSequence = 0,
-  accountSequence = 0;
+  accountSequence = 0,
+  accountRestoreSequence = 0;
 let currentRoute = "inicio",
   workspaceSequence = 0,
   ownDemandSequence = 0;
 let workspaceLoaded = false,
   ownDemandsLoaded = false;
+let activeMatchTab = "traction",
+  matchmakingData = [],
+  matchmakingSequence = 0,
+  matchingDemand = null;
+let composerInitialized = false,
+  demandTags = [],
+  demandImages = [],
+  publicProfile = null,
+  publicProfileKey = "",
+  publicProfileRows = [],
+  nextProfileDemands = null,
+  profileStatus = "ALL",
+  publicProfileSequence = 0;
+const demandDrafts = new Map();
 const demandTitles = new Map();
 const PUSH_STORAGE_KEY = "starup-push-id";
 try {
@@ -132,6 +149,10 @@ function notice(message, error = false) {
   $("notice-text").textContent = message;
   $("notice").hidden = !message;
   $("notice").classList.toggle("error", error);
+  if (currentRoute === "publicar-demanda") {
+    $("demand-feedback").textContent = message;
+    $("demand-feedback").hidden = !message;
+  }
   const dialog = document.querySelector("dialog[open]");
   if (dialog) {
     const feedback = dialog.querySelector(".form-feedback");
@@ -168,8 +189,9 @@ async function api(path, { method = "GET", data, publicRead = false } = {}) {
     throw new Error("Destino não permitido.");
   if (method !== "GET" && !navigator.onLine)
     throw new Error("Conecte-se à internet para concluir esta ação.");
+  const multipart = typeof FormData !== "undefined" && data instanceof FormData;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
+  const timer = setTimeout(() => controller.abort(), multipart ? 60000 : 15000);
   let response;
   try {
     response = await fetch(url.href, {
@@ -178,10 +200,10 @@ async function api(path, { method = "GET", data, publicRead = false } = {}) {
       cache: "no-store",
       signal: controller.signal,
       headers: {
-        ...(data ? { "Content-Type": "application/json" } : {}),
+        ...(data && !multipart ? { "Content-Type": "application/json" } : {}),
         ...(!publicRead ? { "X-CSRFToken": csrfToken } : {}),
       },
-      body: data ? JSON.stringify(data) : undefined,
+      body: multipart ? data : data ? JSON.stringify(data) : undefined,
     });
   } catch (error) {
     throw new Error(
@@ -305,10 +327,12 @@ function renderAccount() {
         ? "Escolha uma solução para seus desafios e acompanhe os resultados."
         : "Acompanhe suas conexões, do primeiro contato à entrega.";
     $("profile-form").hidden = account.role !== "STARTUP";
-    if (account.role === "STARTUP")
-      ["name", "description", "website"].forEach((field) => {
+    if (account.role === "STARTUP") {
+      renderStartupCategories();
+      ["name", "description", "website", "category"].forEach((field) => {
         $("profile-form").elements[field].value = account.profile[field] || "";
       });
+    }
     $("home-title").replaceChildren(
       document.createTextNode("Boas conexões começam por aqui"),
       el("span", ".", "yellow-text"),
@@ -321,11 +345,17 @@ function renderAccount() {
   }
 }
 async function restoreAccount() {
+  const sequence = accountSequence,
+    requestSequence = ++accountRestoreSequence;
+  const isCurrent = () => sequence === accountSequence &&
+    requestSequence === accountRestoreSequence;
   try {
     const restored = await api("/api/v1/me/");
+    if (!isCurrent()) return;
     if (account && account.id !== restored.id) clearPrivateState();
     account = restored;
   } catch (error) {
+    if (!isCurrent()) return;
     if ([401, 403].includes(error.status)) {
       // A first anonymous visit is not a logout. Clearing here races the public
       // feed and removes its offline copy immediately after it is saved.
@@ -352,33 +382,39 @@ const routeNames = {
   vitrine: "Explorar vitrine",
   demandas: "Minhas demandas",
   propostas: "Propostas e entregas",
-  "como-funciona": "Como funciona",
+  matchmaking: "Matchmaking Inteligente",
+  "publicar-demanda": "Publicar demanda",
+  perfil: "Perfil público",
   conta: "Minha conta",
 };
 function route() {
+  if ($("detail-dialog").open) $("detail-dialog").close();
+  if (currentRoute === "publicar-demanda" && composerInitialized) saveDemandDraft();
   const name = location.hash.slice(1) || "inicio";
-  const validName = Object.hasOwn(routeNames, name) ? name : "inicio";
-  if (["demandas", "propostas", "conta"].includes(validName) && !account) {
+  const profileRoute = /^perfil\/(startup|cliente)\/([a-z0-9-]+)$/i.exec(name);
+  const validName = profileRoute ? "perfil" : name === "como-funciona" ? "inicio"
+    : Object.hasOwn(routeNames, name) ? name : "inicio";
+  if (["demandas", "propostas", "conta", "publicar-demanda"].includes(validName) && !account) {
     currentRoute = "inicio";
     history.replaceState(null, "", "#inicio");
     showAuth("login");
   } else if (
-    (validName === "demandas" && account.role !== "CLIENT") ||
-    (validName === "propostas" && !["CLIENT", "STARTUP"].includes(account.role))
+    (["demandas", "publicar-demanda"].includes(validName) && account?.role !== "CLIENT") ||
+    (validName === "propostas" && !["CLIENT", "STARTUP"].includes(account?.role))
   ) {
     currentRoute = "vitrine";
     history.replaceState(null, "", "#vitrine");
-  } else {
-    currentRoute = validName;
-  }
-  const home = currentRoute === "inicio",
-    market = home || currentRoute === "vitrine";
+  } else currentRoute = validName;
+  const home = currentRoute === "inicio", market = home || currentRoute === "vitrine";
   $("home-view").hidden = !home;
+  $("how-view").hidden = !home;
   $("market-view").hidden = !market;
   $("demands-view").hidden = currentRoute !== "demandas";
   $("workspace-view").hidden = currentRoute !== "propostas";
-  $("how-view").hidden = currentRoute !== "como-funciona";
+  $("matchmaking-view").hidden = currentRoute !== "matchmaking";
   $("account-view").hidden = currentRoute !== "conta";
+  $("publish-view").hidden = currentRoute !== "publicar-demanda";
+  $("public-profile-view").hidden = currentRoute !== "perfil";
   document.querySelectorAll("[data-route]").forEach((node) => {
     const active = node.dataset.route === currentRoute;
     node.classList.toggle("active", active);
@@ -388,19 +424,19 @@ function route() {
   $("breadcrumb-current").textContent = routeNames[currentRoute];
   document.title = routeNames[currentRoute] + " — StarUP";
   $("market-eyebrow").style.display = home ? "none" : "block";
-  $("feed-title").textContent = home
-    ? "Explore o que está acontecendo"
-    : "Uma boa conexão começa aqui.";
+  $("feed-title").textContent = home ? "No seu ecossistema" : "A vitrine de quem faz acontecer.";
   $("market-description").textContent = home
-    ? "Encontre uma oportunidade para começar algo bom."
-    : "Descubra demandas, conheça startups e explore resultados reais.";
+    ? "As publicações mais recentes de demandas, startups e resultados."
+    : "Conheça os desafios, as pessoas e as soluções por trás de cada conexão.";
   $("see-all-feed").hidden = !home;
   setMenu(false);
   renderFeed();
-  if (currentRoute === "demandas" && !ownDemandsLoaded)
-    run(() => loadOwnDemands());
-  if (currentRoute === "propostas" && !workspaceLoaded)
-    run(() => loadWorkspace());
+  if (currentRoute === "demandas" && !ownDemandsLoaded) run(() => loadOwnDemands());
+  if (currentRoute === "propostas" && !workspaceLoaded) run(() => loadWorkspace());
+  if (currentRoute === "matchmaking") run(() => loadMatchmaking());
+  if (currentRoute === "publicar-demanda" && !composerInitialized) run(() => showDemand());
+  if (currentRoute === "perfil" && profileRoute)
+    run(() => loadPublicProfile(profileRoute[1].toLowerCase(), profileRoute[2]));
 }
 window.addEventListener("hashchange", () => {
   route();
@@ -483,6 +519,7 @@ function showAuth(mode = "login", role) {
       '[name="role"][value="' + role + '"]',
     ).checked = true;
   registrationRole();
+  if (mode === "register") run(() => loadCategories());
   showDialog($("auth-dialog"));
 }
 document
@@ -570,14 +607,33 @@ $("register-form").addEventListener("submit", (event) => {
 });
 function clearPrivateState() {
   accountSequence++;
+  accountRestoreSequence++;
   workspaceSequence++;
   ownDemandSequence++;
+  matchmakingSequence++;
+  activeMatchTab = "traction";
+  matchmakingData = [];
+  matchingDemand = null;
+  $("matchmaking-results").replaceChildren();
+  $("matchmaking-results").removeAttribute("aria-busy");
+  $("tab-match-role").hidden = true;
+  $("tab-match-demand").hidden = true;
+  $("matchmaking-subtitle").textContent =
+    "Startups ordenadas por avaliações de entregas e histórico de testes concluídos.";
   account = null;
+  updateMatchmakingTabs();
   solutions = [];
   ownDemands = [];
   nextSolutions = null;
   nextDemands = null;
   editingDemand = null;
+  clearDemandDrafts();
+  publicProfileSequence++;
+  publicProfile = null;
+  publicProfileKey = "";
+  publicProfileRows = [];
+  $("public-profile-header").replaceChildren();
+  $("public-profile-demands").replaceChildren();
   confirmHandler = null;
   demandTitles.clear();
   workspaceLoaded = false;
@@ -595,6 +651,7 @@ function clearPrivateState() {
   $("own-demands").replaceChildren();
   $("workspace-summary").replaceChildren();
   $("profile-form").reset();
+  renderStartupCategories();
   [
     "profile-name",
     "profile-email",
@@ -685,85 +742,123 @@ function emptyState(title, description, iconName = "compass", cta, handler) {
     node.append(action(cta, handler, "btn btn-outline btn-small", "arrow"));
   return node;
 }
-function renderPost(post) {
-  const c = post.content,
-    demand = post.kind === "DEMAND",
-    startup = post.kind === "STARTUP";
-  const card = el("article", undefined, "feed-card"),
-    top = el("div", undefined, "card-top"),
-    mark = el(
-      "span",
-      undefined,
-      "entity-icon " + (startup ? "startup" : demand ? "" : "review"),
-    );
-  mark.append(
-    startup
-      ? document.createTextNode(initials(c.name))
-      : icon(demand ? "briefcase" : "star"),
-  );
-  top.append(
-    mark,
-    demand
-      ? statusBadge(c.status)
-      : badge(
-          startup ? "Startup" : "Solução avaliada",
-          startup ? "startup" : "review",
-        ),
-  );
-  const body = el("div", undefined, "card-body");
-  body.append(el("h3", c.title || c.name || c.demand_title));
-  body.append(
-    el(
-      "p",
-      demand || startup
-        ? c.description || "Conheça esta startup e suas soluções."
-        : c.startup_name +
-            " entregou uma solução avaliada com " +
-            c.rating +
-            " de 5 estrelas.",
-      "card-description",
-    ),
-  );
-  const foot = el("div", undefined, "card-footer"),
-    meta = el("span", undefined, "card-date");
-  if (startup && c.review_count) {
-    meta.append(
-      icon("star"),
-      document.createTextNode(
-        Number(c.average_rating).toLocaleString("pt-BR", {
-          minimumFractionDigits: 1,
-          maximumFractionDigits: 1,
-        }) +
-          " · " +
-          c.review_count +
-          " avaliações",
-      ),
-    );
-  } else if (startup) meta.textContent = "Novas possibilidades";
-  else if (!demand) {
-    meta.append(
-      icon("star"),
-      document.createTextNode(c.rating + "/5 · Resultado real"),
-    );
-  } else {
-    meta.append(
-      icon("clock"),
-      document.createTextNode(shortDate(post.published_at)),
-    );
+function profileHref(type, id) {
+  return id ? "#perfil/" + (type === "STARTUP" ? "startup" : "cliente") + "/" + encodeURIComponent(id) : "";
+}
+function profileLink(type, id, name, className = "profile-name-link") {
+  const link = el(id ? "a" : "span", name || (type === "STARTUP" ? "Startup" : "Cliente"), className);
+  if (id) link.href = profileHref(type, id);
+  return link;
+}
+function ratingStars(value, count) {
+  const rating = Number(value), stars = el("span", undefined, "public-rating");
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+    stars.textContent = "Ainda sem avaliações";
+    return stars;
   }
-  foot.append(
-    meta,
-    action(
-      demand ? "Ver demanda" : startup ? "Conhecer" : "Ver resultado",
-      () => openPost(post),
-      "text-link icon-button-link",
-      "arrow",
-    ),
-  );
-  card.append(top, body, foot);
+  stars.setAttribute("aria-label", rating.toFixed(1) + " de 5 estrelas" + (count ? ", " + count + " avaliações" : ""));
+  const glyphs = el("span", "★".repeat(Math.round(rating)) + "☆".repeat(5 - Math.round(rating)), "rating-glyphs");
+  glyphs.setAttribute("aria-hidden", "true");
+  stars.append(glyphs, el("strong", rating.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "/5"));
+  if (count) stars.append(el("span", " · " + count + (count === 1 ? " avaliação" : " avaliações")));
+  return stars;
+}
+function safeImageUrl(value) {
+  try {
+    const url = new URL(value, location.origin);
+    return url.origin === location.origin && ["http:", "https:"].includes(url.protocol) ? url.href : null;
+  } catch { return null; }
+}
+function imageGallery(images = [], title = "demanda") {
+  const gallery = el("div", undefined, "post-gallery gallery-" + Math.min(images.length, 4));
+  images.slice(0, 4).forEach((item, index) => {
+    const url = safeImageUrl(item.url);
+    if (!url) return;
+    const link = el("a"), image = el("img");
+    link.href = url; link.target = "_blank"; link.rel = "noopener noreferrer";
+    image.src = url; image.alt = "Imagem " + (index + 1) + " de " + title;
+    image.loading = "lazy"; image.decoding = "async";
+    link.append(image); gallery.append(link);
+  });
+  return gallery;
+}
+function tagList(tags = [], clickable = true) {
+  const list = el("div", undefined, "tag-list post-tags");
+  tags.forEach((tag) => {
+    const chip = clickable ? action("#" + tag, () => {
+      feedTag = tag; location.hash = "vitrine"; updateTabs(); return loadFeed();
+    }, "post-tag") : el("span", "#" + tag, "post-tag");
+    list.append(chip);
+  });
+  return list;
+}
+function postAuthor(post) {
+  const c = post.content, startup = post.kind !== "DEMAND";
+  return {
+    type: post.author_type || (startup ? "STARTUP" : "CLIENT"),
+    id: post.author_id || (startup ? c.startup_id || (post.kind === "STARTUP" ? c.id : null) : c.client_id),
+    name: post.author_name || (startup ? c.startup_name || c.name : c.client_name) || (startup ? "Startup" : "Cliente"),
+  };
+}
+function renderPost(post) {
+  const c = post.content, demand = post.kind === "DEMAND", startup = post.kind === "STARTUP", author = postAuthor(post);
+  const card = el("article", undefined, "social-post"), top = el("header", undefined, "post-header");
+  const avatar = profileLink(author.type, author.id, initials(author.name), "post-avatar " + (author.type === "STARTUP" ? "startup-avatar" : ""));
+  avatar.setAttribute("aria-label", "Ver perfil de " + author.name);
+  const identity = el("div", undefined, "post-identity");
+  identity.append(profileLink(author.type, author.id, author.name));
+  const meta = el("div", undefined, "post-meta");
+  meta.append(el("span", author.type === "STARTUP" ? "Startup" : "Cliente"));
+  if (post.published_at || c.created_at) {
+    const time = el("time", " · " + shortDate(post.published_at || c.created_at));
+    time.dateTime = post.published_at || c.created_at; meta.append(time);
+  }
+  identity.append(meta);
+  top.append(avatar, identity, demand ? statusBadge(c.status) : badge(startup ? "Startup" : "Resultado avaliado", startup ? "startup" : "review"));
+  const body = el("div", undefined, "post-body");
+  body.append(el("p", startup ? "Conheça nossa startup" : demand ? "Compartilhando um desafio" : "Uma conexão que virou resultado", "post-kind"));
+  body.append(el("h3", c.title || c.name || c.demand_title));
+  const description = c.description || c.demand_description || (startup ? "Conheça esta startup e suas soluções." : c.startup_name + " entregou uma solução para este desafio.");
+  body.append(el("p", description, "post-description"));
+  if (c.category_name || c.category) body.append(badge(c.category_name || c.category, "neutral"));
+  if (c.tags?.length) body.append(tagList(c.tags));
+  if (c.images?.length) body.append(imageGallery(c.images, c.title || c.demand_title));
+  if (c.rating) body.append(ratingStars(c.rating));
+  else if (startup) body.append(ratingStars(c.average_rating, c.review_count));
+  if (c.selected_startup_id || (!demand && c.client_id)) {
+    const connected = el("p", undefined, "post-connection");
+    connected.append(document.createTextNode(demand ? "Solução por " : "Desafio de "),
+      demand ? profileLink("STARTUP", c.selected_startup_id, c.selected_startup_name)
+        : profileLink("CLIENT", c.client_id, c.client_name));
+    body.append(connected);
+  }
+  const actions = el("footer", undefined, "post-actions");
+  actions.append(action(demand ? (account?.role === "STARTUP" && c.status === "OPEN" ? "Conhecer desafio e propor solução" : "Ver demanda") : startup ? "Ver perfil da startup" : "Ver resultado",
+    () => { if (startup && c.id) location.hash = profileHref("STARTUP", c.id); else return openPost(post); }, "btn btn-outline btn-small", "arrow"));
+  if (author.id) actions.append(profileLink(author.type, author.id, "Ver perfil", "text-link"));
+  card.append(top, body, actions);
   return card;
 }
+function renderFeedContext() {
+  const context = $("market-context"); context.replaceChildren();
+  if (account) {
+    context.append(el("span", initials(accountName()), "post-avatar"), el("h3", accountName()), el("p", roleLabels[account.role] || "Minha conta"));
+    if (account.role === "CLIENT") context.append(action("Publicar um desafio", () => showDemand(), "btn btn-dark btn-small", "plus"));
+    else if (account.role === "STARTUP") {
+      const proposals = el("a", "Minhas propostas", "text-link"); proposals.href = "#propostas"; context.append(proposals);
+    }
+    if (account.role === "INVESTOR") context.append(el("p", "Sua identidade permanece privada enquanto você explora perfis e resultados.", "field-help"));
+  } else context.append(el("h3", "Boas conexões começam aqui."), el("p", "Conheça quem publica e quem transforma desafios em resultados."), action("Fazer parte", () => showAuth("register"), "btn btn-dark btn-small"));
+  const recent = $("recent-results"); recent.replaceChildren();
+  const results = feed.filter((post) => post.kind === "REVIEWED_SOLUTION").slice(0, 3);
+  if (!results.length) recent.append(el("p", "As entregas avaliadas aparecem aqui conforme novas conexões são concluídas.", "field-help"));
+  results.forEach((post) => {
+    const row = el("a", undefined, "recent-result"); row.href = profileHref("STARTUP", post.content.startup_id) || "#vitrine";
+    row.append(el("strong", post.content.startup_name), el("span", post.content.demand_title), ratingStars(post.content.rating)); recent.append(row);
+  });
+}
 function renderFeed() {
+  renderFeedContext();
   feed.forEach((post) => {
     if (post.kind === "DEMAND")
       demandTitles.set(post.content.id, post.content.title);
@@ -786,6 +881,9 @@ function renderFeed() {
             post.content.description,
             post.content.startup_name,
             post.content.category_name,
+            post.content.client_name,
+            post.author_name,
+            ...(post.content.tags || []),
           ]
             .filter(Boolean)
             .join(" "),
@@ -808,12 +906,13 @@ function renderFeed() {
         () => {
           if (feed.length) {
             feedFilter = "ALL";
+            feedTag = "";
             $("feed-search").value = "";
             updateTabs();
-            renderFeed();
+            return loadFeed();
           } else if (account?.role === "CLIENT") showDemand();
           else if (!account) showAuth("register");
-          else location.hash = "como-funciona";
+          else location.hash = "inicio";
         },
       ),
     );
@@ -843,6 +942,8 @@ function renderFeed() {
         : "");
 }
 function updateTabs() {
+  const activeTag = $("active-tag-filter"); activeTag.replaceChildren(); activeTag.hidden = !feedTag;
+  if (feedTag) activeTag.append(el("span", "Filtrando por #" + feedTag), action("Remover filtro ×", () => { feedTag = ""; updateTabs(); return loadFeed(); }, "post-tag"));
   document.querySelectorAll("[data-filter]").forEach((node) => {
     const active = node.dataset.filter === feedFilter;
     node.classList.toggle("active", active);
@@ -853,14 +954,14 @@ document.querySelectorAll("[data-filter]").forEach((node) =>
   node.addEventListener("click", () => {
     feedFilter = node.dataset.filter;
     updateTabs();
-    renderFeed();
+    run(() => loadFeed());
   }),
 );
 $("feed-search").addEventListener("input", renderFeed);
 async function loadFeed(append = false) {
   const sequence = ++feedSequence;
   try {
-    const result = await api(append && nextFeed ? nextFeed : "/api/v1/feed/", {
+    const result = await api(append && nextFeed ? nextFeed : "/api/v1/feed/?" + new URLSearchParams({ kind: feedFilter, ...(feedTag ? { tag: feedTag } : {}) }), {
       publicRead: true,
     });
     if (sequence !== feedSequence) return;
@@ -915,6 +1016,11 @@ async function openPost(post) {
   if (post.kind === "DEMAND") {
     meta.append(statusBadge(c.status), badge(c.category_name || "Demanda"));
     container.append(meta, el("p", c.description, "detail-description"));
+    if (c.client_id) container.append(profileLink("CLIENT", c.client_id, c.client_name));
+    if (c.tags?.length) container.append(tagList(c.tags));
+    if (c.images?.length) container.append(imageGallery(c.images, c.title));
+    if (c.rating) container.append(ratingStars(c.rating));
+    if (c.selected_startup_id) container.append(profileLink("STARTUP", c.selected_startup_id, c.selected_startup_name));
     if (account?.role === "STARTUP" && c.status === "OPEN") {
       if (solutions.some((s) => s.demand_id === c.id))
         container.append(
@@ -940,8 +1046,10 @@ async function openPost(post) {
         form.addEventListener("submit", (event) => {
           event.preventDefault();
           run(async () => {
+            const sequence = accountSequence;
+            let submitted;
             try {
-              await api("/api/v1/solutions/", {
+              submitted = await api("/api/v1/solutions/", {
                 method: "POST",
                 data: { demand_id: c.id, proposal: input.value },
               });
@@ -952,11 +1060,28 @@ async function openPost(post) {
                 );
               throw error;
             }
+            if (sequence !== accountSequence || account?.role !== "STARTUP") return;
+            // Update immediately, including while the following network refresh is pending.
+            solutions = [...solutions.filter((solution) => solution.demand_id !== c.id), submitted];
+            if (activeMatchTab === "role") {
+              matchmakingSequence++;
+              matchmakingData = matchmakingData.filter((item) => item.demand_id !== c.id);
+              renderMatchmaking();
+              $("matchmaking-results").removeAttribute("aria-busy");
+            }
             $("detail-dialog").close();
-            await loadWorkspace();
-            notice(
-              "Proposta enviada. Acompanhe os próximos passos em Propostas e entregas.",
-            );
+            try {
+              await loadWorkspace();
+              if (sequence !== accountSequence) return;
+              if (currentRoute === "matchmaking" && activeMatchTab === "role")
+                await loadMatchmaking();
+            } catch {
+              if (sequence === accountSequence)
+                notice("Proposta enviada. Atualize as conexões para carregar os dados mais recentes.", true);
+              return;
+            }
+            if (sequence === accountSequence)
+              notice("Proposta enviada. Acompanhe os próximos passos em Propostas e entregas.");
           }, submit);
         });
         container.append(form);
@@ -1048,77 +1173,141 @@ async function openPost(post) {
   }
   showDialog($("detail-dialog"));
 }
+function renderStartupCategories() {
+  ["profile-category", "registration-category"].forEach((id) => {
+    const select = $(id), previous = select.value;
+    const saved = id === "profile-category" ? account?.profile?.category : previous;
+    select.replaceChildren(
+      new Option("Selecione um setor (opcional)", ""),
+      ...categories.filter((category) => category.slug.length <= 40)
+        .map((category) => new Option(category.name, category.slug)),
+    );
+    // Preserve legacy profile values until the owner selects a current category.
+    if (saved && ![...select.options].some((option) => option.value === saved))
+      select.add(new Option(saved, saved));
+    select.value = saved || "";
+  });
+}
 async function loadCategories() {
-  if (categories.length) return;
-  categories = await allPages("/api/v1/categories/", { publicRead: true });
+  if (!categories.length)
+    categories = await allPages("/api/v1/categories/", { publicRead: true });
+  renderStartupCategories();
+  const selectedCategory = $("category-select").value;
   $("category-select").replaceChildren(
     new Option("Selecione uma categoria", ""),
     ...categories.map((c) => new Option(c.name, c.id)),
   );
+  $("category-select").value = selectedCategory;
+}
+function draftKey(demand = editingDemand) { return demand?.id || "new"; }
+function saveDemandDraft() {
+  if (!composerInitialized) return;
+  const form = $("demand-form");
+  demandDrafts.set(draftKey(), {
+    values: Object.fromEntries(["title", "description", "category_id", "visibility"].map((field) => [field, form.elements[field].value])),
+    tags: [...demandTags], images: [...demandImages],
+  });
+}
+function clearDemandDrafts() {
+  const images = [...demandImages, ...[...demandDrafts.values()].flatMap((draft) => draft.images)];
+  new Set(images.filter((image) => image.file).map((image) => image.url)).forEach((url) => URL.revokeObjectURL(url));
+  demandDrafts.clear(); demandTags = []; demandImages = []; composerInitialized = false;
+  $("demand-tags").replaceChildren(); $("demand-image-previews").replaceChildren();
+  $("demand-tag-input").value = ""; $("demand-images").value = "";
 }
 async function showDemand(demand = null) {
-  if (!account) {
-    showAuth("register", "CLIENT");
-    return;
-  }
+  if (!account) { showAuth("register", "CLIENT"); return; }
   if (account.role !== "CLIENT") return;
+  const sequence = accountSequence;
+  saveDemandDraft();
   await loadCategories();
+  if (sequence !== accountSequence || account?.role !== "CLIENT") return;
   editingDemand = demand;
-  const form = $("demand-form");
+  const form = $("demand-form"), draft = demandDrafts.get(draftKey(demand));
   form.reset();
-  $("demand-form-title").textContent = demand
-    ? "Ajuste os detalhes do desafio."
-    : "O que você precisa resolver?";
-  if (demand) {
-    ["title", "description", "category_id"].forEach((field) => {
-      form.elements[field].value = demand[field];
-    });
-    form.elements.visibility.value = demand.visibility;
+  const values = draft?.values || demand || { title: "", description: "", category_id: "", visibility: "PUBLIC" };
+  ["title", "description", "category_id", "visibility"].forEach((field) => { form.elements[field].value = values[field] || (field === "visibility" ? "PUBLIC" : ""); });
+  demandTags = [...(draft?.tags || demand?.tags || [])];
+  demandImages = [...(draft?.images || demand?.images || [])];
+  composerInitialized = true;
+  $("demand-form-title").textContent = demand ? "Edite seu desafio." : "Publique seu próximo desafio.";
+  $("composer-author").replaceChildren(el("span", initials(accountName()), "post-avatar"), el("strong", accountName()), badge("Cliente", "neutral"));
+  $("demand-feedback").hidden = true;
+  renderComposer(); updateDemandSubmit();
+  location.hash = "publicar-demanda";
+}
+function renderComposer() {
+  $("description-counter").textContent = $("demand-form").elements.description.value.length.toLocaleString("pt-BR") + " / 10.000 caracteres";
+  $("demand-tags").replaceChildren(...demandTags.map((tag, index) => action("#" + tag + " ×", () => { demandTags.splice(index, 1); renderComposer(); }, "post-tag")));
+  $("demand-image-previews").replaceChildren(...demandImages.map((item, index) => {
+    const figure = el("figure", undefined, "image-preview"), image = el("img");
+    image.src = item.file ? item.url : safeImageUrl(item.url); image.alt = "Imagem " + (index + 1) + " da publicação";
+    const remove = action("Remover imagem " + (index + 1) + " ×", () => {
+      const [removed] = demandImages.splice(index, 1);
+      if (removed.file) URL.revokeObjectURL(removed.url);
+      renderComposer();
+    }, "remove-image");
+    figure.append(image, remove); return figure;
+  }));
+}
+function addDemandTag() {
+  const input = $("demand-tag-input"), tag = input.value.trim().replace(/^#+/, "");
+  if (!tag) { input.value = ""; return; }
+  if (tag.length > 30) throw new Error("Cada tag pode ter no máximo 30 caracteres.");
+  if (demandTags.some((value) => value.toLocaleLowerCase("pt-BR") === tag.toLocaleLowerCase("pt-BR"))) { input.value = ""; return; }
+  if (demandTags.length >= 8) throw new Error("Use no máximo 8 tags por demanda.");
+  demandTags.push(tag); input.value = ""; renderComposer();
+}
+function addDemandImages(files) {
+  const selected = [...files];
+  if (demandImages.length + selected.length > 4) throw new Error("Adicione no máximo 4 imagens por demanda.");
+  for (const file of selected) {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("Use imagens JPEG, PNG ou WebP.");
+    if (file.size > 5 * 1024 * 1024) throw new Error("Cada imagem deve ter no máximo 5 MB.");
   }
-  updateDemandSubmit();
-  showDialog($("demand-dialog"));
+  demandImages.push(...selected.map((file) => ({ file, url: URL.createObjectURL(file) })));
+  renderComposer();
+}
+function demandPayload() {
+  addDemandTag();
+  const form = $("demand-form"), data = new FormData();
+  ["title", "description", "category_id", "visibility"].forEach((field) => data.append(field, form.elements[field].value));
+  data.append("tags", JSON.stringify(demandTags));
+  if (editingDemand) data.append("keep_image_ids", JSON.stringify(demandImages.filter((image) => !image.file).map((image) => image.id)));
+  demandImages.filter((image) => image.file).forEach((image) => data.append("images", image.file, image.file.name));
+  return data;
 }
 function updateDemandSubmit() {
-  $("demand-submit").textContent = editingDemand
-    ? "Salvar alterações"
-    : $("demand-form").elements.visibility.value === "PRIVATE"
-      ? "Salvar demanda privada"
-      : "Publicar demanda";
+  const isPrivate = $("demand-form").elements.visibility.value === "PRIVATE";
+  $("demand-submit").textContent = editingDemand ? "Salvar alterações" : isPrivate ? "Salvar demanda privada" : "Publicar demanda";
+  $("composer-visibility-note").replaceChildren(badge(isPrivate ? "Publicação privada" : "Publicação pública", "neutral"), el("p", isPrivate ? "Sua demanda fica disponível apenas na sua conta." : "Sua demanda pode ser encontrada por startups, clientes e investidores."));
 }
-$("demand-form").elements.visibility.forEach((input) =>
-  input.addEventListener("change", updateDemandSubmit),
-);
-$("new-demand").addEventListener("click", (event) =>
-  run(() => showDemand(), event.currentTarget),
-);
-$("publish-cta").addEventListener("click", (event) =>
-  run(() => showDemand(), event.currentTarget),
-);
+$("demand-form").elements.visibility.forEach((input) => input.addEventListener("change", updateDemandSubmit));
+$("demand-form").elements.description.addEventListener("input", renderComposer);
+$("demand-tag-input").addEventListener("keydown", (event) => {
+  if (["Enter", ","].includes(event.key)) { event.preventDefault(); run(() => addDemandTag()); }
+});
+$("demand-images").addEventListener("change", (event) => {
+  run(() => addDemandImages(event.currentTarget.files)); event.currentTarget.value = "";
+});
+$("new-demand").addEventListener("click", (event) => run(() => showDemand(), event.currentTarget));
+$("publish-cta").addEventListener("click", (event) => run(() => showDemand(), event.currentTarget));
 $("demand-form").addEventListener("submit", (event) => {
   event.preventDefault();
-  const form = event.currentTarget;
   run(async () => {
-    const editing = Boolean(editingDemand);
-    const result = await api(
-      editing
-        ? "/api/v1/demands/" + editingDemand.id + "/"
-        : "/api/v1/demands/",
-      {
-        method: editing ? "PATCH" : "POST",
-        data: Object.fromEntries(new FormData(form)),
-      },
-    );
-    $("demand-dialog").close();
-    form.reset();
-    editingDemand = null;
+    if (account?.role !== "CLIENT") return;
+    const sequence = accountSequence, editing = Boolean(editingDemand), key = draftKey();
+    const result = await api(editing ? "/api/v1/demands/" + editingDemand.id + "/" : "/api/v1/demands/", {
+      method: editing ? "PATCH" : "POST", data: demandPayload(),
+    });
+    if (sequence !== accountSequence) return;
+    demandImages.filter((image) => image.file).forEach((image) => URL.revokeObjectURL(image.url));
+    demandDrafts.delete(key); demandTags = []; demandImages = []; composerInitialized = false; editingDemand = null;
+    $("demand-form").reset(); $("demand-tag-input").value = "";
+    location.hash = "demandas";
     await Promise.all([loadOwnDemands(), loadFeed()]);
-    notice(
-      editing
-        ? "Sua demanda foi atualizada."
-        : result.visibility === "PRIVATE"
-          ? "Demanda salva. Publique na vitrine quando quiser receber propostas."
-          : "Demanda publicada! Startups já podem enviar propostas.",
-    );
+    if (sequence !== accountSequence) return;
+    notice(editing ? "Sua demanda foi atualizada." : result.visibility === "PRIVATE" ? "Demanda salva. Publique quando quiser receber propostas." : "Demanda publicada! Startups já podem enviar propostas.");
   }, $("demand-submit"));
 });
 function renderOwnDemands() {
@@ -1142,8 +1331,14 @@ function renderOwnDemands() {
         el("h3", demand.title),
         el("p", demand.description, "card-description"),
       );
+      if (demand.tags?.length) card.append(tagList(demand.tags));
+      if (demand.images?.length) card.append(imageGallery(demand.images, demand.title));
+      if (demand.rating) card.append(ratingStars(demand.rating));
       const controls = el("div", undefined, "card-actions");
       if (demand.status === "OPEN") {
+        controls.append(
+          action("Encontrar startups", () => showDemandMatches(demand), "btn btn-dark btn-small", "star"),
+        );
         controls.append(
           action(
             "Editar",
@@ -1517,7 +1712,7 @@ async function loadPrivateState() {
   if (account && ["CLIENT", "STARTUP"].includes(account.role))
     await Promise.all([
       loadWorkspace(),
-      account.role === "CLIENT" ? loadOwnDemands() : Promise.resolve(),
+      account.role === "CLIENT" ? loadOwnDemands() : loadCategories(),
     ]);
 }
 $("refresh-workspace").addEventListener("click", (event) =>
@@ -1597,6 +1792,218 @@ $("disable-push").addEventListener("click", (event) =>
     notice("Notificações desativadas.");
   }, event.currentTarget),
 );
+
+function updateMatchmakingTabs() {
+  const isStartup = account?.role === "STARTUP";
+  $("tab-match-role").hidden = !isStartup;
+  $("tab-match-demand").hidden = !matchingDemand || account?.role !== "CLIENT";
+  if ((activeMatchTab === "role" && !isStartup) ||
+      (activeMatchTab === "demand" && (!matchingDemand || account?.role !== "CLIENT")))
+    activeMatchTab = "traction";
+  [["tab-match-all", "traction"], ["tab-match-role", "role"], ["tab-match-demand", "demand"]]
+    .forEach(([id, value]) => {
+      $(id).classList.toggle("active", activeMatchTab === value);
+      $(id).setAttribute("aria-pressed", String(activeMatchTab === value));
+    });
+}
+function showDemandMatches(demand) {
+  if (account?.role !== "CLIENT") return;
+  matchingDemand = { id: demand.id, title: demand.title };
+  activeMatchTab = "demand";
+  if (currentRoute === "matchmaking") return loadMatchmaking();
+  location.hash = "matchmaking";
+}
+async function loadMatchmaking() {
+  updateMatchmakingTabs();
+  const sequence = accountSequence,
+    requestSequence = ++matchmakingSequence,
+    tab = activeMatchTab,
+    container = $("matchmaking-results");
+  const isCurrent = () => sequence === accountSequence &&
+    requestSequence === matchmakingSequence && tab === activeMatchTab;
+  matchmakingData = [];
+  container.replaceChildren(el("p", "Calculando conexões…", "muted"));
+  container.setAttribute("aria-busy", "true");
+  let path = "/api/v1/matchmaking/traction-showcase/";
+  if (tab === "role") {
+    const category = categories.find((item) => item.slug === account.profile.category);
+    $("matchmaking-subtitle").textContent =
+      "Demandas abertas, ordenadas por compatibilidade com o setor da sua startup (" +
+      (category?.name || account.profile.category || "não definido") +
+      "). A pontuação combina o setor da demanda com o histórico da sua startup.";
+    path = "/api/v1/matchmaking/recommended-demands/";
+  } else if (tab === "demand") {
+    $("matchmaking-subtitle").textContent = "Startups compatíveis com sua demanda: " + matchingDemand.title;
+    path = "/api/v1/matchmaking/demands/" + matchingDemand.id + "/";
+  } else {
+    $("matchmaking-subtitle").textContent =
+      "Startups ordenadas por avaliações de entregas e histórico de testes concluídos.";
+  }
+  try {
+    const result = await api(path, { publicRead: tab === "traction" });
+    if (!isCurrent()) return;
+    matchmakingData = result;
+    renderMatchmaking();
+  } catch (error) {
+    if (!isCurrent()) return;
+    container.replaceChildren(emptyState(
+      "Não foi possível carregar as conexões.",
+      "Conecte-se à internet e use Atualizar para tentar novamente.", "refresh",
+    ));
+    throw error;
+  } finally {
+    if (isCurrent()) container.removeAttribute("aria-busy");
+  }
+}
+function matchMetrics(details) {
+  const metrics = el("div", undefined, "match-metrics-grid");
+  [["Aderência setorial", "c_setor"], ["Qualidade das avaliações", "m_auditoria"],
+    ["Estimativa de impacto", "e_economia"], ["Maturidade dos testes", "t_maturidade"]]
+    .forEach(([label, field]) => {
+      const metric = el("div");
+      metric.append(document.createTextNode(label + ": "), el("strong", Math.round(details[field] * 100) + "%"));
+      metrics.append(metric);
+    });
+  return metrics;
+}
+async function openRecommendedDemand(id) {
+  if (account?.role !== "STARTUP") return;
+  const sequence = accountSequence;
+  // Re-read current visibility/status before opening the existing proposal form.
+  const demand = await api("/api/v1/demands/" + id + "/");
+  if (sequence !== accountSequence || account?.role !== "STARTUP") return;
+  return openPost({ kind: "DEMAND", content: demand });
+}
+function renderMatchmaking() {
+  const container = $("matchmaking-results");
+  container.replaceChildren();
+  if (!matchmakingData.length) {
+    container.append(emptyState(
+      "Nenhuma conexão calculada no momento.",
+      activeMatchTab === "role"
+        ? "Escolha um setor no perfil para melhorar as recomendações ou aguarde novas demandas abertas."
+        : "Nenhuma startup disponível para estes critérios.", "rocket",
+    ));
+    return;
+  }
+  matchmakingData.forEach((item) => {
+    const card = el("article", undefined, "feed-card matchmaking-card"),
+      top = el("div", undefined, "card-top"),
+      rightBadges = el("div", undefined, "match-badges");
+    const badgeClass = item.score >= 75 ? "match-score-badge badge-high"
+      : item.score >= 50 ? "match-score-badge badge-mid" : "match-score-badge";
+    const scoreBadge = el("span", undefined, badgeClass);
+    scoreBadge.append(icon("star"), document.createTextNode("Score: " + item.score + "%"));
+    rightBadges.append(scoreBadge);
+    if (item.has_seal)
+      rightBadges.append(el("span", "✓ Entrega bem avaliada", "match-seal-badge"));
+    if (activeMatchTab === "role") {
+      top.append(el("h3", item.title), rightBadges);
+      const actions = el("div", undefined, "card-actions");
+      const submitted = solutions.some((solution) => solution.demand_id === item.demand_id);
+      actions.append(action(submitted ? "Ver proposta enviada" : "Enviar proposta",
+        () => openRecommendedDemand(item.demand_id), "btn btn-dark btn-small", "arrow"));
+      card.append(top, badge(item.category_name || "Geral", "neutral"),
+        el("p", item.description, "card-description"), matchMetrics(item.details), actions);
+    } else {
+      const heading = el("h3"); heading.append(profileLink("STARTUP", item.startup_id, item.startup_name));
+      top.append(heading, rightBadges);
+      const stats = el("p", "Avaliação média: " +
+        (item.average_rating ? Number(item.average_rating).toFixed(1) + " ★" : "Sem notas ainda") +
+        " · Testes concluídos: " + item.completed_tests, "muted");
+      const category = categories.find((category) => category.slug === item.startup_category);
+      card.append(top, badge(item.startup_category ? "Setor: " + (category?.name || item.startup_category) : "Sem setor", "neutral"),
+        el("p", item.startup_description || "Startup focada em resolução de desafios reais.", "card-description"),
+        stats, matchMetrics(item.details));
+    }
+    container.append(card);
+  });
+}
+[["tab-match-all", "traction"], ["tab-match-role", "role"], ["tab-match-demand", "demand"]]
+  .forEach(([id, tab]) => $(id).addEventListener("click", (event) => {
+    activeMatchTab = tab;
+    run(() => loadMatchmaking(), event.currentTarget);
+  }));
+$("refresh-matchmaking").addEventListener("click", (event) =>
+  run(() => loadMatchmaking(), event.currentTarget),
+);
+function profilePath(type, id) {
+  return "/api/v1/" + (type === "startup" ? "startups" : "clients") + "/" + encodeURIComponent(id) + "/";
+}
+function renderPublicProfileHeader(type, profile) {
+  const header = el("article", undefined, "surface public-profile-hero"), identity = el("div", undefined, "public-profile-identity");
+  const name = type === "startup" ? profile.name : profile.display_name;
+  identity.append(el("span", initials(name), "profile-hero-avatar"));
+  const title = el("div"), heading = el("h1", name); heading.id = "public-profile-title";
+  title.append(badge(type === "startup" ? "Startup" : "Cliente", "neutral"), heading);
+  if (profile.category) {
+    const category = categories.find((item) => item.slug === profile.category);
+    title.append(el("p", category?.name || profile.category));
+  }
+  identity.append(title); header.append(identity);
+  if (profile.description) header.append(el("p", profile.description, "public-profile-description"));
+  if (profile.website) {
+    try {
+      const url = new URL(profile.website);
+      if (["http:", "https:"].includes(url.protocol)) {
+        const link = el("a", url.hostname, "text-link"); link.href = url.href; link.target = "_blank"; link.rel = "noopener noreferrer";
+        link.append(icon("external")); header.append(link);
+      }
+    } catch { /* A legacy invalid URL remains plain profile data. */ }
+  }
+  const stats = el("div", undefined, "public-profile-stats");
+  const count = (label, value) => { const item = el("div"); item.append(el("strong", value ?? 0), el("span", label)); return item; };
+  stats.append(count(type === "startup" ? "Em andamento" : "Demandas em aberto", type === "startup" ? profile.in_progress_count : profile.open_count), count("Demandas concluídas", profile.completed_count));
+  const ratings = el("div"); ratings.append(ratingStars(profile.average_rating, profile.review_count), el("span", type === "startup" ? "Avaliações das soluções entregues" : "Avaliações das entregas recebidas")); stats.append(ratings);
+  header.append(stats); $("public-profile-header").replaceChildren(header);
+  $("public-profile-history-note").textContent = type === "startup" ? "Demandas públicas em que esta startup foi selecionada. As notas são de clientes que confirmaram as entregas." : "Demandas públicas deste cliente e as avaliações que ele atribuiu às entregas recebidas.";
+}
+function renderPublicProfileDemands() {
+  $("public-profile-demands").replaceChildren(...publicProfileRows.map((demand) => renderPost({ kind: "DEMAND", published_at: demand.created_at, author_type: "CLIENT", author_id: demand.client_id, author_name: demand.client_name, content: demand })));
+  if (!publicProfileRows.length) $("public-profile-demands").append(emptyState("Nenhuma demanda pública neste filtro.", "Experimente outro status para conhecer as conexões deste perfil.", "briefcase"));
+  $("more-profile-demands").hidden = !nextProfileDemands;
+}
+async function loadPublicProfile(type, id, append = false) {
+  const key = type + "/" + id, requestSequence = ++publicProfileSequence;
+  if (key !== publicProfileKey) { profileStatus = "ALL"; publicProfileRows = []; publicProfile = null; }
+  publicProfileKey = key;
+  if (!append) {
+    $("public-profile-header").replaceChildren(el("p", "Carregando perfil público…"));
+    $("public-profile-demands").replaceChildren();
+  }
+  const base = profilePath(type, id);
+  const isCurrent = () => requestSequence === publicProfileSequence && publicProfileKey === key;
+  try {
+    const [profile, page] = await Promise.all([
+      publicProfile && append ? Promise.resolve(publicProfile) : api(base, { publicRead: true }),
+      api(append && nextProfileDemands ? nextProfileDemands : base + "demands/" + (profileStatus === "ALL" ? "" : "?status=" + profileStatus), { publicRead: true }),
+    ]);
+    if (!isCurrent()) return;
+    publicProfile = profile;
+    publicProfileRows = append ? [...publicProfileRows, ...page.results] : page.results;
+    nextProfileDemands = page.next;
+    renderPublicProfileHeader(type, profile); renderPublicProfileDemands();
+    document.querySelectorAll("[data-profile-status]").forEach((tab) => {
+      tab.hidden = type === "startup" && tab.dataset.profileStatus === "OPEN";
+      const active = tab.dataset.profileStatus === profileStatus; tab.classList.toggle("active", active); tab.setAttribute("aria-pressed", String(active));
+    });
+  } catch (error) {
+    if (!isCurrent()) return;
+    $("public-profile-header").replaceChildren(emptyState("Perfil indisponível.", error.status === 404 ? "Este perfil não está disponível publicamente." : "Verifique sua conexão e tente atualizar.", "compass"));
+    $("more-profile-demands").hidden = true;
+    throw error;
+  }
+}
+$("more-profile-demands").addEventListener("click", (event) => run(() => {
+  const [type, id] = publicProfileKey.split("/"); return loadPublicProfile(type, id, true);
+}, event.currentTarget));
+$("refresh-public-profile").addEventListener("click", (event) => run(() => {
+  const [type, id] = publicProfileKey.split("/"); return loadPublicProfile(type, id);
+}, event.currentTarget));
+document.querySelectorAll("[data-profile-status]").forEach((tab) => tab.addEventListener("click", (event) => {
+  profileStatus = tab.dataset.profileStatus;
+  const [type, id] = publicProfileKey.split("/"); run(() => loadPublicProfile(type, id), event.currentTarget);
+}));
 function networkState() {
   $("network-status").hidden = navigator.onLine;
   $("network-status").textContent =

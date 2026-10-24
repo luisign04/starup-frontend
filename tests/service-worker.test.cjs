@@ -112,7 +112,7 @@ test("private endpoints and mutations never enter cache", async () => {
   const state = worker(async () => {
     throw new Error("Unexpected network interception");
   });
-  for (const route of ["/api/v1/me/", "/api/v1/solutions/", "/admin/"]) {
+  for (const route of ["/api/v1/me/", "/api/v1/solutions/", "/api/v1/matchmaking/recommended-demands/", "/api/v1/matchmaking/demands/demand-id/", "/api/v1/matchmaking/traction-showcase/", "/api/v1/clients/client-id/", "/api/v1/startups/startup-id/demands/", "/api/v1/demand-images/image-id/", "/admin/"]) {
     const { event } = state.fetchEvent(route, {
       headers: { Authorization: "private-token" },
     });
@@ -134,7 +134,7 @@ test("feed refresh discards credentials and authorization headers", async () => 
   await Promise.all(pending);
   assert.equal(state.calls[0][1].credentials, "omit");
   assert.equal(state.calls[0][1].headers, undefined);
-  assert.equal(state.stores.get("starup-v8-feed").entries.size, 1);
+  assert.equal(state.stores.get("starup-v10-feed").entries.size, 1);
 });
 test("cached feed remains available offline", async () => {
   let online = true;
@@ -205,7 +205,7 @@ test("expired cached feed is rejected offline", async () => {
   const state = worker(async () => {
     throw new Error("offline");
   });
-  const cache = await state.cacheStorage.open("starup-v8-feed");
+  const cache = await state.cacheStorage.open("starup-v10-feed");
   await cache.put(
     ORIGIN + "/api/v1/feed/",
     new Response("stale", {
@@ -232,7 +232,7 @@ test("a private response is never cached even on the public feed URL", async () 
   const { event, pending } = state.fetchEvent("/api/v1/feed/");
   await event.response;
   await Promise.all(pending);
-  assert.equal(state.stores.get("starup-v8-feed").entries.size, 0);
+  assert.equal(state.stores.get("starup-v10-feed").entries.size, 0);
 });
 test("feed cache is capped at ten pages", async () => {
   const state = worker(async () => publicFeed());
@@ -241,7 +241,7 @@ test("feed cache is capped at ten pages", async () => {
     await event.response;
     await Promise.all(pending);
   }
-  assert.equal(state.stores.get("starup-v8-feed").entries.size, 10);
+  assert.equal(state.stores.get("starup-v10-feed").entries.size, 10);
 });
 test("activation removes previous-brand caches and preserves current StarUP caches", async () => {
   const state = worker(async () => publicFeed());
@@ -249,8 +249,8 @@ test("activation removes previous-brand caches and preserves current StarUP cach
     "nexora-v3-shell",
     "nexora-v3-feed",
     "starup-v0-feed",
-    "starup-v8-shell",
-    "starup-v8-feed",
+    "starup-v10-shell",
+    "starup-v10-feed",
     "unrelated-cache",
   ])
     await state.cacheStorage.open(name);
@@ -264,8 +264,8 @@ test("activation removes previous-brand caches and preserves current StarUP cach
   assert.equal(state.stores.has("starup-v0-feed"), false);
   assert.equal(state.stores.has("nexora-v3-shell"), false);
   assert.equal(state.stores.has("nexora-v3-feed"), false);
-  assert.equal(state.stores.has("starup-v8-shell"), true);
-  assert.equal(state.stores.has("starup-v8-feed"), true);
+  assert.equal(state.stores.has("starup-v10-shell"), true);
+  assert.equal(state.stores.has("starup-v10-feed"), true);
   assert.equal(state.stores.has("unrelated-cache"), true);
 });
 test("worker update waits for explicit activation", async () => {
@@ -276,8 +276,8 @@ test("worker update waits for explicit activation", async () => {
 });
 test("logout clears data cache while preserving shell", async () => {
   const state = worker(async () => publicFeed());
-  await state.cacheStorage.open("starup-v8-feed");
-  await state.cacheStorage.open("starup-v8-shell");
+  await state.cacheStorage.open("starup-v10-feed");
+  await state.cacheStorage.open("starup-v10-shell");
   await state.cacheStorage.open("nexora-v3-feed");
   await state.cacheStorage.open("nexora-v3-shell");
   let done;
@@ -288,8 +288,8 @@ test("logout clears data cache while preserving shell", async () => {
     },
   });
   await done;
-  assert.equal(state.stores.has("starup-v8-feed"), false);
+  assert.equal(state.stores.has("starup-v10-feed"), false);
   assert.equal(state.stores.has("nexora-v3-feed"), false);
   assert.equal(state.stores.has("nexora-v3-shell"), false);
-  assert.equal(state.stores.has("starup-v8-shell"), true);
+  assert.equal(state.stores.has("starup-v10-shell"), true);
 });

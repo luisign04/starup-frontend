@@ -56,8 +56,11 @@
           ><span data-icon="layers"></span
           ><span id="workspace-nav-label">Propostas e entregas</span></a
         >
-        <a href="#como-funciona" data-route="como-funciona"
-          ><span data-icon="route"></span>Como funciona</a
+        <a href="#matchmaking" data-route="matchmaking"
+          ><span data-icon="rocket"></span>Matchmaking<span class="nav-tag">Score</span></a
+        >
+        <a href="#publicar-demanda" data-route="publicar-demanda" data-role="CLIENT" hidden
+          ><span data-icon="plus"></span>Publicar demanda</a
         >
       </nav>
       <div class="sidebar-bottom">
@@ -246,7 +249,7 @@
               <h2>Um ecossistema de possibilidades</h2>
               <p>Um retrato dos conteúdos carregados da vitrine.</p>
             </div>
-            <a href="#como-funciona" class="text-link"
+            <a href="#inicio" class="text-link"
               >Entenda a StarUP <span data-icon="arrow"></span
             ></a>
           </div>
@@ -279,6 +282,76 @@
                 >Resultados reconhecidos por clientes</span
               >
             </article>
+          </div>
+        </section>
+
+        <section id="how-view" class="view" hidden aria-labelledby="how-title">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">SIMPLES DO INÍCIO AO RESULTADO</p>
+              <h2 id="how-title">
+                Boas ideias merecem uma chance<span class="yellow-text">.</span>
+              </h2>
+              <p>
+                A StarUP aproxima quem tem um desafio de quem pode resolvê-lo.
+              </p>
+            </div>
+          </div>
+          <div class="process-grid">
+            <article>
+              <span class="process-number">01</span
+              ><span data-icon="briefcase"></span>
+              <h2>Compartilhe um desafio</h2>
+              <p>
+                Como cliente, descreva sua necessidade e escolha uma categoria.
+                Publique na vitrine para receber propostas de startups.
+              </p>
+            </article>
+            <article>
+              <span class="process-number">02</span
+              ><span data-icon="rocket"></span>
+              <h2>Encontre uma solução</h2>
+              <p>
+                Startups enviam propostas para demandas abertas. O cliente
+                escolhe a que faz sentido e a startup inicia o trabalho.
+              </p>
+            </article>
+            <article>
+              <span class="process-number">03</span
+              ><span data-icon="star"></span>
+              <h2>Transforme em resultado</h2>
+              <p>
+                A startup registra a entrega. O cliente confirma o resultado com
+                uma avaliação de 1 a 5 estrelas.
+              </p>
+            </article>
+          </div>
+          <div class="roles-section">
+            <h2>Qual é o seu próximo passo?</h2>
+            <div class="role-cards">
+              <button data-join-role="STARTUP">
+                <span data-icon="rocket"></span><strong>Sou startup</strong
+                ><span
+                  >Encontre desafios reais e mostre o valor da sua
+                  solução.</span
+                ><span class="text-link"
+                  >Quero oferecer soluções ↗</span
+                ></button
+              ><button data-join-role="CLIENT">
+                <span data-icon="briefcase"></span><strong>Sou cliente</strong
+                ><span
+                  >Compartilhe uma necessidade e conheça quem pode ajudar.</span
+                ><span class="text-link"
+                  >Quero resolver um desafio ↗</span
+                ></button
+              ><button data-join-role="INVESTOR">
+                <span data-icon="eye"></span><strong>Sou investidor</strong
+                ><span
+                  >Explore startups e resultados com sua identidade
+                  privada.</span
+                ><span class="text-link">Quero conhecer o ecossistema ↗</span>
+              </button>
+            </div>
           </div>
         </section>
 
@@ -342,10 +415,11 @@
                     aria-label="Buscar nos conteúdos carregados"
                 /></label>
               </div>
+              <div id="active-tag-filter" hidden></div>
               <p id="feed-status" class="feed-status" aria-live="polite">
                 Carregando oportunidades…
               </p>
-              <div id="feed" class="feed-grid" aria-busy="true"></div>
+              <div id="feed" class="social-feed" aria-busy="true"></div>
               <div class="feed-bottom">
                 <button class="btn btn-outline" id="more-feed" hidden>
                   Carregar mais <span data-icon="plus"></span></button
@@ -354,51 +428,56 @@
                 ></a>
               </div>
             </div>
-            <aside class="market-aside">
-              <div class="how-card">
-                <span class="eyebrow">DO DESAFIO À SOLUÇÃO</span>
-                <h3>Conexões que<br />saem do papel.</h3>
-                <ol class="mini-steps">
-                  <li>
-                    <span>01</span>
-                    <div>
-                      <strong>Um desafio real</strong>
-                      <p>Clientes compartilham o que precisam resolver.</p>
-                    </div>
-                  </li>
-                  <li>
-                    <span>02</span>
-                    <div>
-                      <strong>Uma boa proposta</strong>
-                      <p>Startups mostram como podem ajudar.</p>
-                    </div>
-                  </li>
-                  <li>
-                    <span>03</span>
-                    <div>
-                      <strong>Um resultado concreto</strong>
-                      <p>A entrega acontece e o cliente avalia.</p>
-                    </div>
-                  </li>
-                </ol>
-                <a href="#como-funciona" class="text-link"
-                  >Conheça o processo <span data-icon="arrow"></span
-                ></a>
+            <aside class="market-aside social-context" aria-label="Seu contexto na vitrine">
+              <div class="surface feed-context-card" id="market-context"></div>
+              <div class="surface feed-context-card">
+                <span class="eyebrow">RESULTADOS REAIS</span>
+                <h3>Conexões que entregam</h3>
+                <div id="recent-results"></div>
+                <a href="#matchmaking" class="text-link">Explorar matchmaking <span data-icon="arrow"></span></a>
               </div>
-              <div class="privacy-card">
-                <span data-icon="shield"></span>
-                <div>
-                  <h3>Explore com tranquilidade</h3>
-                  <p>
-                    O perfil de investidor tem leitura privada. Sua identidade
-                    não aparece na vitrine.
-                  </p>
-                </div>
-              </div>
+              <a href="/privacy.html" class="context-privacy"><span data-icon="shield"></span>Privacidade e segurança</a>
             </aside>
           </div>
         </section>
 
+        <section id="publish-view" class="view" hidden aria-labelledby="demand-form-title">
+          <div class="page-heading"><div><p class="eyebrow">COMPARTILHE UMA OPORTUNIDADE</p>
+            <h1 id="demand-form-title">Publique seu próximo desafio<span class="yellow-text">.</span></h1>
+            <p>Conte o contexto, mostre o que precisa e encontre uma startup para construir a solução.</p>
+          </div><a href="#demandas" class="btn btn-outline">Minhas demandas</a></div>
+          <div class="composer-layout">
+            <form id="demand-form" class="surface demand-composer">
+              <div class="composer-author" id="composer-author"></div>
+              <p id="demand-feedback" class="form-feedback" role="status" aria-live="polite" hidden></p>
+              <label>Título da demanda<input name="title" required maxlength="160" placeholder="Qual desafio você quer resolver?" /></label>
+              <label>Descrição<textarea name="description" required maxlength="10000" rows="10" placeholder="Apresente seu contexto, o problema e o resultado que você espera alcançar."></textarea></label>
+              <div class="composer-counter" id="description-counter">0 / 10.000 caracteres</div>
+              <div class="composer-fields"><label>Categoria<select name="category_id" id="category-select" required><option value="">Selecione uma categoria</option></select></label>
+              <label>Tags <span class="optional">(até 8)</span><input id="demand-tag-input" maxlength="30" placeholder="Ex.: logística · pressione Enter" aria-describedby="tag-help" /></label></div>
+              <div id="demand-tags" class="tag-list" aria-live="polite"></div><p id="tag-help" class="field-help">Use Enter ou vírgula para adicionar. Até 30 caracteres por tag.</p>
+              <div class="image-upload-field"><div><strong>Imagens do desafio</strong><p class="field-help">Até 4 imagens JPEG, PNG ou WebP, com até 5 MB cada.</p></div>
+                <label class="btn btn-outline upload-button"><span data-icon="plus"></span>Adicionar imagens<input type="file" id="demand-images" accept="image/jpeg,image/png,image/webp" multiple /></label></div>
+              <div id="demand-image-previews" class="composer-previews" aria-live="polite"></div>
+              <fieldset class="visibility-options"><legend>Visibilidade da demanda</legend>
+                <label><input type="radio" name="visibility" value="PUBLIC" checked /><span><strong>Pública</strong><small>Aparece na vitrine e nos perfis públicos.</small></span><span data-icon="globe"></span></label>
+                <label><input type="radio" name="visibility" value="PRIVATE" /><span><strong>Privada</strong><small>Fica visível apenas para você até publicar.</small></span><span data-icon="lock"></span></label>
+              </fieldset>
+              <div class="composer-footer"><span id="draft-status" class="field-help">Rascunho mantido nesta aba enquanto você navega.</span><button class="btn btn-dark" id="demand-submit">Publicar demanda <span data-icon="arrow"></span></button></div>
+            </form>
+            <aside class="surface composer-context"><span class="eyebrow">SUA PUBLICAÇÃO</span><h2>Um desafio com contexto.</h2><p>A descrição, as tags e as imagens aparecem juntas para quem explora sua demanda.</p><div id="composer-visibility-note"></div><p class="privacy-note"><span data-icon="shield"></span>Compartilhe apenas imagens e informações que podem ser vistas pelo público escolhido.</p></aside>
+          </div>
+        </section>
+        <section id="public-profile-view" class="view" hidden aria-labelledby="public-profile-title">
+          <a href="#vitrine" class="text-link profile-back">← Voltar à vitrine</a>
+          <div id="public-profile-header" aria-live="polite"></div>
+          <div class="section-heading"><div><h2>Demandas e resultados</h2><p id="public-profile-history-note">Histórico público de conexões.</p></div><button class="btn btn-outline btn-small" id="refresh-public-profile"><span data-icon="refresh"></span>Atualizar</button></div>
+          <div class="tabs standalone-tabs" role="group" aria-label="Filtrar histórico público">
+            <button class="tab active" data-profile-status="ALL" aria-pressed="true">Todas</button><button class="tab" data-profile-status="OPEN" aria-pressed="false">Em aberto</button><button class="tab" data-profile-status="IN_PROGRESS" aria-pressed="false">Em andamento</button><button class="tab" data-profile-status="COMPLETED" aria-pressed="false">Concluídas</button>
+          </div>
+          <div id="public-profile-demands" class="social-feed profile-feed" aria-live="polite"></div>
+          <button class="btn btn-outline" id="more-profile-demands" hidden>Carregar mais demandas</button>
+        </section>
         <section
           id="demands-view"
           class="view"
@@ -473,74 +552,40 @@
             Carregar mais propostas
           </button>
         </section>
-        <section id="how-view" class="view" hidden aria-labelledby="how-title">
+        <section
+          id="matchmaking-view"
+          class="view"
+          hidden
+          aria-labelledby="matchmaking-title"
+        >
           <div class="page-heading">
             <div>
-              <p class="eyebrow">SIMPLES DO INÍCIO AO RESULTADO</p>
-              <h1 id="how-title">
-                Boas ideias merecem uma chance<span class="yellow-text">.</span>
+              <p class="eyebrow">SCORE DE TRAÇÃO PRÁTICA (S_MATCH)</p>
+              <h1 id="matchmaking-title">
+                Matchmaking Inteligente<span class="yellow-text">.</span>
               </h1>
-              <p>
-                A StarUP aproxima quem tem um desafio de quem pode resolvê-lo.
+              <p id="matchmaking-subtitle">
+                Oportunidades e conexões ranqueadas por resultados e evidências reais.
               </p>
             </div>
+            <button class="btn btn-outline btn-small" id="refresh-matchmaking">
+              <span data-icon="refresh"></span>Atualizar
+            </button>
           </div>
-          <div class="process-grid">
-            <article>
-              <span class="process-number">01</span
-              ><span data-icon="briefcase"></span>
-              <h2>Compartilhe um desafio</h2>
-              <p>
-                Como cliente, descreva sua necessidade e escolha uma categoria.
-                Publique na vitrine para receber propostas de startups.
-              </p>
-            </article>
-            <article>
-              <span class="process-number">02</span
-              ><span data-icon="rocket"></span>
-              <h2>Encontre uma solução</h2>
-              <p>
-                Startups enviam propostas para demandas abertas. O cliente
-                escolhe a que faz sentido e a startup inicia o trabalho.
-              </p>
-            </article>
-            <article>
-              <span class="process-number">03</span
-              ><span data-icon="star"></span>
-              <h2>Transforme em resultado</h2>
-              <p>
-                A startup registra a entrega. O cliente confirma o resultado com
-                uma avaliação de 1 a 5 estrelas.
-              </p>
-            </article>
-          </div>
-          <div class="roles-section">
-            <h2>Qual é o seu próximo passo?</h2>
-            <div class="role-cards">
-              <button data-join-role="STARTUP">
-                <span data-icon="rocket"></span><strong>Sou startup</strong
-                ><span
-                  >Encontre desafios reais e mostre o valor da sua
-                  solução.</span
-                ><span class="text-link"
-                  >Quero oferecer soluções ↗</span
-                ></button
-              ><button data-join-role="CLIENT">
-                <span data-icon="briefcase"></span><strong>Sou cliente</strong
-                ><span
-                  >Compartilhe uma necessidade e conheça quem pode ajudar.</span
-                ><span class="text-link"
-                  >Quero resolver um desafio ↗</span
-                ></button
-              ><button data-join-role="INVESTOR">
-                <span data-icon="eye"></span><strong>Sou investidor</strong
-                ><span
-                  >Explore startups e resultados com sua identidade
-                  privada.</span
-                ><span class="text-link">Quero conhecer o ecossistema ↗</span>
-              </button>
+          <div class="matchmaking-formula-banner surface">
+            <span class="mini-star">✦</span>
+            <div>
+              <strong>Pontuação baseada em entregas avaliadas:</strong>
+              <code>S_match = (0.25 × C_setor) + (0.35 × M_auditoria) + (0.25 × E_economia) + (0.15 × T_maturidade)</code>
+              <p class="muted">Pontuação de 0 a 100 baseada em compatibilidade de setor, avaliações e entregas concluídas. O impacto econômico é estimado pelo histórico de entregas; a pontuação não representa uma auditoria independente.</p>
             </div>
           </div>
+          <div id="matchmaking-context-tabs" class="tabs standalone-tabs" role="group" aria-label="Escolher contexto do matchmaking">
+            <button class="tab active" id="tab-match-all" data-match-tab="traction" aria-pressed="true">Vitrine de Tração</button>
+            <button class="tab" id="tab-match-role" data-match-tab="role" aria-pressed="false" hidden>Recomendações para Você</button>
+            <button class="tab" id="tab-match-demand" data-match-tab="demand" aria-pressed="false" hidden>Startups para sua demanda</button>
+          </div>
+          <div id="matchmaking-results" class="workspace-grid" aria-live="polite" style="margin-top:20px;"></div>
         </section>
         <section
           id="account-view"
@@ -592,6 +637,9 @@
                     type="url"
                     placeholder="https://sua-startup.com.br"
                     maxlength="200" /></label
+                ><label>Setor da startup<select name="category" id="profile-category">
+                  <option value="">Selecione um setor (opcional)</option>
+                </select><small>Escolha o setor para melhorar a compatibilidade das recomendações.</small></label
                 ><button class="btn btn-dark">
                   Salvar alterações <span data-icon="check"></span>
                 </button>
@@ -779,6 +827,9 @@
               maxlength="200"
               placeholder="https://sua-startup.com.br"
           /></label>
+          <label>Setor da startup<select name="category" id="registration-category">
+            <option value="">Selecione um setor (opcional)</option>
+          </select></label>
         </div>
         <div data-registration="INVESTOR" class="privacy-note" hidden>
           <span data-icon="shield"></span>
@@ -803,65 +854,6 @@
         <span data-icon="shield"></span>Seus dados protegidos. Suas conexões com
         propósito.
       </p>
-    </dialog>
-    <dialog
-      id="demand-dialog"
-      class="modal"
-      aria-labelledby="demand-form-title"
-    >
-      <div class="modal-header">
-        <span class="eyebrow">COMPARTILHE UM DESAFIO</span
-        ><button class="icon-button" data-close-dialog aria-label="Fechar">
-          ×
-        </button>
-      </div>
-      <h2 id="demand-form-title">O que você precisa resolver?</h2>
-      <p class="muted">
-        Uma boa descrição é o primeiro passo para uma boa conexão.
-      </p>
-      <p class="form-feedback" role="status" aria-live="polite" hidden></p>
-      <form id="demand-form">
-        <label
-          >Título da demanda<input
-            name="title"
-            required
-            maxlength="160"
-            placeholder="Ex.: Simplificar o controle de estoque" /></label
-        ><label
-          >Descrição<textarea
-            name="description"
-            required
-            maxlength="10000"
-            rows="5"
-            placeholder="Conte o desafio, o contexto e o resultado que você espera alcançar."
-          ></textarea></label
-        ><label
-          >Categoria<select name="category_id" id="category-select" required>
-            <option value="">Selecione uma categoria</option>
-          </select></label
-        >
-        <fieldset class="visibility-options">
-          <legend>Quem pode ver esta demanda?</legend>
-          <label
-            ><input
-              type="radio"
-              name="visibility"
-              value="PUBLIC"
-              checked /><span
-              ><strong>Pública</strong
-              ><small>Aparece na vitrine e recebe propostas.</small></span
-            ><span data-icon="globe"></span></label
-          ><label
-            ><input type="radio" name="visibility" value="PRIVATE" /><span
-              ><strong>Privada</strong
-              ><small>Visível apenas para você até publicar.</small></span
-            ><span data-icon="lock"></span
-          ></label>
-        </fieldset>
-        <button class="btn btn-dark btn-full" id="demand-submit">
-          Publicar demanda <span data-icon="arrow"></span>
-        </button>
-      </form>
     </dialog>
     <dialog
       id="detail-dialog"
