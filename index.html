@@ -59,6 +59,9 @@
         <a href="#matchmaking" data-route="matchmaking"
           ><span data-icon="rocket"></span>Matchmaking<span class="nav-tag">Score</span></a
         >
+        <a href="#publicar-demanda" data-route="publicar-demanda" data-role="CLIENT" hidden
+          ><span data-icon="plus"></span>Publicar demanda</a
+        >
       </nav>
       <div class="sidebar-bottom">
         <div class="sidebar-invite" id="sidebar-invite">
@@ -438,7 +441,33 @@
           </div>
         </section>
 
-
+        <section id="publish-view" class="view" hidden aria-labelledby="demand-form-title">
+          <div class="page-heading"><div><p class="eyebrow">COMPARTILHE UMA OPORTUNIDADE</p>
+            <h1 id="demand-form-title">Publique seu próximo desafio<span class="yellow-text">.</span></h1>
+            <p>Conte o contexto, mostre o que precisa e encontre uma startup para construir a solução.</p>
+          </div><a href="#demandas" class="btn btn-outline">Minhas demandas</a></div>
+          <div class="composer-layout">
+            <form id="demand-form" class="surface demand-composer">
+              <div class="composer-author" id="composer-author"></div>
+              <p id="demand-feedback" class="form-feedback" role="status" aria-live="polite" hidden></p>
+              <label>Título da demanda<input name="title" required maxlength="160" placeholder="Qual desafio você quer resolver?" /></label>
+              <label>Descrição<textarea name="description" required maxlength="10000" rows="10" placeholder="Apresente seu contexto, o problema e o resultado que você espera alcançar."></textarea></label>
+              <div class="composer-counter" id="description-counter">0 / 10.000 caracteres</div>
+              <div class="composer-fields"><label>Categoria<select name="category_id" id="category-select" required><option value="">Selecione uma categoria</option></select></label>
+              <label>Tags <span class="optional">(até 8)</span><input id="demand-tag-input" maxlength="30" placeholder="Ex.: logística · pressione Enter" aria-describedby="tag-help" /></label></div>
+              <div id="demand-tags" class="tag-list" aria-live="polite"></div><p id="tag-help" class="field-help">Use Enter ou vírgula para adicionar. Até 30 caracteres por tag.</p>
+              <div class="image-upload-field"><div><strong>Imagens do desafio</strong><p class="field-help">Até 4 imagens JPEG, PNG ou WebP, com até 5 MB cada.</p></div>
+                <label class="btn btn-outline upload-button"><span data-icon="plus"></span>Adicionar imagens<input type="file" id="demand-images" accept="image/jpeg,image/png,image/webp" multiple /></label></div>
+              <div id="demand-image-previews" class="composer-previews" aria-live="polite"></div>
+              <fieldset class="visibility-options"><legend>Visibilidade da demanda</legend>
+                <label><input type="radio" name="visibility" value="PUBLIC" checked /><span><strong>Pública</strong><small>Aparece na vitrine e nos perfis públicos.</small></span><span data-icon="globe"></span></label>
+                <label><input type="radio" name="visibility" value="PRIVATE" /><span><strong>Privada</strong><small>Fica visível apenas para você até publicar.</small></span><span data-icon="lock"></span></label>
+              </fieldset>
+              <div class="composer-footer"><span id="draft-status" class="field-help">Rascunho mantido nesta aba enquanto você navega.</span><button class="btn btn-dark" id="demand-submit">Publicar demanda <span data-icon="arrow"></span></button></div>
+            </form>
+            <aside class="surface composer-context"><span class="eyebrow">SUA PUBLICAÇÃO</span><h2>Um desafio com contexto.</h2><p>A descrição, as tags e as imagens aparecem juntas para quem explora sua demanda.</p><div id="composer-visibility-note"></div><p class="privacy-note"><span data-icon="shield"></span>Compartilhe apenas imagens e informações que podem ser vistas pelo público escolhido.</p></aside>
+          </div>
+        </section>
         <section id="public-profile-view" class="view" hidden aria-labelledby="public-profile-title">
           <a href="#vitrine" class="text-link profile-back">← Voltar à vitrine</a>
           <div id="public-profile-header" aria-live="polite"></div>
@@ -825,65 +854,6 @@
         <span data-icon="shield"></span>Seus dados protegidos. Suas conexões com
         propósito.
       </p>
-    </dialog>
-    <dialog
-      id="demand-dialog"
-      class="modal"
-      aria-labelledby="demand-form-title"
-    >
-      <div class="modal-header">
-        <span class="eyebrow">COMPARTILHE UM DESAFIO</span
-        ><button class="icon-button" data-close-dialog aria-label="Fechar">
-          ×
-        </button>
-      </div>
-      <h2 id="demand-form-title">O que você precisa resolver?</h2>
-      <p class="muted">
-        Uma boa descrição é o primeiro passo para uma boa conexão.
-      </p>
-      <p class="form-feedback" role="status" aria-live="polite" hidden></p>
-      <form id="demand-form">
-        <label
-          >Título da demanda<input
-            name="title"
-            required
-            maxlength="160"
-            placeholder="Ex.: Simplificar o controle de estoque" /></label
-        ><label
-          >Descrição<textarea
-            name="description"
-            required
-            maxlength="10000"
-            rows="5"
-            placeholder="Conte o desafio, o contexto e o resultado que você espera alcançar."
-          ></textarea></label
-        ><label
-          >Categoria<select name="category_id" id="category-select" required>
-            <option value="">Selecione uma categoria</option>
-          </select></label
-        >
-        <fieldset class="visibility-options">
-          <legend>Quem pode ver esta demanda?</legend>
-          <label
-            ><input
-              type="radio"
-              name="visibility"
-              value="PUBLIC"
-              checked /><span
-              ><strong>Pública</strong
-              ><small>Aparece na vitrine e recebe propostas.</small></span
-            ><span data-icon="globe"></span></label
-          ><label
-            ><input type="radio" name="visibility" value="PRIVATE" /><span
-              ><strong>Privada</strong
-              ><small>Visível apenas para você até publicar.</small></span
-            ><span data-icon="lock"></span
-          ></label>
-        </fieldset>
-        <button class="btn btn-dark btn-full" id="demand-submit">
-          Publicar demanda <span data-icon="arrow"></span>
-        </button>
-      </form>
     </dialog>
     <dialog
       id="detail-dialog"

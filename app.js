@@ -125,12 +125,16 @@ let activeMatchTab = "traction",
   matchmakingData = [],
   matchmakingSequence = 0,
   matchingDemand = null;
-let publicProfile = null,
+let composerInitialized = false,
+  demandTags = [],
+  demandImages = [],
+  publicProfile = null,
   publicProfileKey = "",
   publicProfileRows = [],
   nextProfileDemands = null,
   profileStatus = "ALL",
   publicProfileSequence = 0;
+const demandDrafts = new Map();
 const demandTitles = new Map();
 const PUSH_STORAGE_KEY = "starup-push-id";
 try {
@@ -145,6 +149,10 @@ function notice(message, error = false) {
   $("notice-text").textContent = message;
   $("notice").hidden = !message;
   $("notice").classList.toggle("error", error);
+  if (currentRoute === "publicar-demanda") {
+    $("demand-feedback").textContent = message;
+    $("demand-feedback").hidden = !message;
+  }
   const dialog = document.querySelector("dialog[open]");
   if (dialog) {
     const feedback = dialog.querySelector(".form-feedback");
@@ -181,8 +189,9 @@ async function api(path, { method = "GET", data, publicRead = false } = {}) {
     throw new Error("Destino não permitido.");
   if (method !== "GET" && !navigator.onLine)
     throw new Error("Conecte-se à internet para concluir esta ação.");
+  const multipart = typeof FormData !== "undefined" && data instanceof FormData;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
+  const timer = setTimeout(() => controller.abort(), multipart ? 60000 : 15000);
   let response;
   try {
     response = await fetch(url.href, {
@@ -191,10 +200,10 @@ async function api(path, { method = "GET", data, publicRead = false } = {}) {
       cache: "no-store",
       signal: controller.signal,
       headers: {
-        ...(data ? { "Content-Type": "application/json" } : {}),
+        ...(data && !multipart ? { "Content-Type": "application/json" } : {}),
         ...(!publicRead ? { "X-CSRFToken": csrfToken } : {}),
       },
-      body: data ? JSON.stringify(data) : undefined,
+      body: multipart ? data : data ? JSON.stringify(data) : undefined,
     });
   } catch (error) {
     throw new Error(
@@ -374,21 +383,23 @@ const routeNames = {
   demandas: "Minhas demandas",
   propostas: "Propostas e entregas",
   matchmaking: "Matchmaking Inteligente",
+  "publicar-demanda": "Publicar demanda",
   perfil: "Perfil público",
   conta: "Minha conta",
 };
 function route() {
   if ($("detail-dialog").open) $("detail-dialog").close();
+  if (currentRoute === "publicar-demanda" && composerInitialized) saveDemandDraft();
   const name = location.hash.slice(1) || "inicio";
   const profileRoute = /^perfil\/(startup|cliente)\/([a-z0-9-]+)$/i.exec(name);
   const validName = profileRoute ? "perfil" : name === "como-funciona" ? "inicio"
     : Object.hasOwn(routeNames, name) ? name : "inicio";
-  if (["demandas", "propostas", "conta"].includes(validName) && !account) {
+  if (["demandas", "propostas", "conta", "publicar-demanda"].includes(validName) && !account) {
     currentRoute = "inicio";
     history.replaceState(null, "", "#inicio");
     showAuth("login");
   } else if (
-    (validName === "demandas" && account?.role !== "CLIENT") ||
+    (["demandas", "publicar-demanda"].includes(validName) && account?.role !== "CLIENT") ||
     (validName === "propostas" && !["CLIENT", "STARTUP"].includes(account?.role))
   ) {
     currentRoute = "vitrine";
@@ -402,6 +413,7 @@ function route() {
   $("workspace-view").hidden = currentRoute !== "propostas";
   $("matchmaking-view").hidden = currentRoute !== "matchmaking";
   $("account-view").hidden = currentRoute !== "conta";
+  $("publish-view").hidden = currentRoute !== "publicar-demanda";
   $("public-profile-view").hidden = currentRoute !== "perfil";
   document.querySelectorAll("[data-route]").forEach((node) => {
     const active = node.dataset.route === currentRoute;
@@ -422,6 +434,7 @@ function route() {
   if (currentRoute === "demandas" && !ownDemandsLoaded) run(() => loadOwnDemands());
   if (currentRoute === "propostas" && !workspaceLoaded) run(() => loadWorkspace());
   if (currentRoute === "matchmaking") run(() => loadMatchmaking());
+  if (currentRoute === "publicar-demanda" && !composerInitialized) run(() => showDemand());
   if (currentRoute === "perfil" && profileRoute)
     run(() => loadPublicProfile(profileRoute[1].toLowerCase(), profileRoute[2]));
 }
@@ -614,6 +627,7 @@ function clearPrivateState() {
   nextSolutions = null;
   nextDemands = null;
   editingDemand = null;
+  clearDemandDrafts();
   publicProfileSequence++;
   publicProfile = null;
   publicProfileKey = "";
@@ -1185,69 +1199,115 @@ async function loadCategories() {
   );
   $("category-select").value = selectedCategory;
 }
-async function showDemand(demand = null) {
-  if (!account) {
-    showAuth("register", "CLIENT");
-    return;
-  }
-  if (account.role !== "CLIENT") return;
-  await loadCategories();
-  editingDemand = demand;
+function draftKey(demand = editingDemand) { return demand?.id || "new"; }
+function saveDemandDraft() {
+  if (!composerInitialized) return;
   const form = $("demand-form");
+  demandDrafts.set(draftKey(), {
+    values: Object.fromEntries(["title", "description", "category_id", "visibility"].map((field) => [field, form.elements[field].value])),
+    tags: [...demandTags], images: [...demandImages],
+  });
+}
+function clearDemandDrafts() {
+  const images = [...demandImages, ...[...demandDrafts.values()].flatMap((draft) => draft.images)];
+  new Set(images.filter((image) => image.file).map((image) => image.url)).forEach((url) => URL.revokeObjectURL(url));
+  demandDrafts.clear(); demandTags = []; demandImages = []; composerInitialized = false;
+  $("demand-tags").replaceChildren(); $("demand-image-previews").replaceChildren();
+  $("demand-tag-input").value = ""; $("demand-images").value = "";
+}
+async function showDemand(demand = null) {
+  if (!account) { showAuth("register", "CLIENT"); return; }
+  if (account.role !== "CLIENT") return;
+  const sequence = accountSequence;
+  saveDemandDraft();
+  await loadCategories();
+  if (sequence !== accountSequence || account?.role !== "CLIENT") return;
+  editingDemand = demand;
+  const form = $("demand-form"), draft = demandDrafts.get(draftKey(demand));
   form.reset();
-  $("demand-form-title").textContent = demand
-    ? "Ajuste os detalhes do desafio."
-    : "O que você precisa resolver?";
-  if (demand) {
-    ["title", "description", "category_id"].forEach((field) => {
-      form.elements[field].value = demand[field];
-    });
-    form.elements.visibility.value = demand.visibility;
+  const values = draft?.values || demand || { title: "", description: "", category_id: "", visibility: "PUBLIC" };
+  ["title", "description", "category_id", "visibility"].forEach((field) => { form.elements[field].value = values[field] || (field === "visibility" ? "PUBLIC" : ""); });
+  demandTags = [...(draft?.tags || demand?.tags || [])];
+  demandImages = [...(draft?.images || demand?.images || [])];
+  composerInitialized = true;
+  $("demand-form-title").textContent = demand ? "Edite seu desafio." : "Publique seu próximo desafio.";
+  $("composer-author").replaceChildren(el("span", initials(accountName()), "post-avatar"), el("strong", accountName()), badge("Cliente", "neutral"));
+  $("demand-feedback").hidden = true;
+  renderComposer(); updateDemandSubmit();
+  location.hash = "publicar-demanda";
+}
+function renderComposer() {
+  $("description-counter").textContent = $("demand-form").elements.description.value.length.toLocaleString("pt-BR") + " / 10.000 caracteres";
+  $("demand-tags").replaceChildren(...demandTags.map((tag, index) => action("#" + tag + " ×", () => { demandTags.splice(index, 1); renderComposer(); }, "post-tag")));
+  $("demand-image-previews").replaceChildren(...demandImages.map((item, index) => {
+    const figure = el("figure", undefined, "image-preview"), image = el("img");
+    image.src = item.file ? item.url : safeImageUrl(item.url); image.alt = "Imagem " + (index + 1) + " da publicação";
+    const remove = action("Remover imagem " + (index + 1) + " ×", () => {
+      const [removed] = demandImages.splice(index, 1);
+      if (removed.file) URL.revokeObjectURL(removed.url);
+      renderComposer();
+    }, "remove-image");
+    figure.append(image, remove); return figure;
+  }));
+}
+function addDemandTag() {
+  const input = $("demand-tag-input"), tag = input.value.trim().replace(/^#+/, "");
+  if (!tag) { input.value = ""; return; }
+  if (tag.length > 30) throw new Error("Cada tag pode ter no máximo 30 caracteres.");
+  if (demandTags.some((value) => value.toLocaleLowerCase("pt-BR") === tag.toLocaleLowerCase("pt-BR"))) { input.value = ""; return; }
+  if (demandTags.length >= 8) throw new Error("Use no máximo 8 tags por demanda.");
+  demandTags.push(tag); input.value = ""; renderComposer();
+}
+function addDemandImages(files) {
+  const selected = [...files];
+  if (demandImages.length + selected.length > 4) throw new Error("Adicione no máximo 4 imagens por demanda.");
+  for (const file of selected) {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("Use imagens JPEG, PNG ou WebP.");
+    if (file.size > 5 * 1024 * 1024) throw new Error("Cada imagem deve ter no máximo 5 MB.");
   }
-  updateDemandSubmit();
-  showDialog($("demand-dialog"));
+  demandImages.push(...selected.map((file) => ({ file, url: URL.createObjectURL(file) })));
+  renderComposer();
+}
+function demandPayload() {
+  addDemandTag();
+  const form = $("demand-form"), data = new FormData();
+  ["title", "description", "category_id", "visibility"].forEach((field) => data.append(field, form.elements[field].value));
+  data.append("tags", JSON.stringify(demandTags));
+  if (editingDemand) data.append("keep_image_ids", JSON.stringify(demandImages.filter((image) => !image.file).map((image) => image.id)));
+  demandImages.filter((image) => image.file).forEach((image) => data.append("images", image.file, image.file.name));
+  return data;
 }
 function updateDemandSubmit() {
-  $("demand-submit").textContent = editingDemand
-    ? "Salvar alterações"
-    : $("demand-form").elements.visibility.value === "PRIVATE"
-      ? "Salvar demanda privada"
-      : "Publicar demanda";
+  const isPrivate = $("demand-form").elements.visibility.value === "PRIVATE";
+  $("demand-submit").textContent = editingDemand ? "Salvar alterações" : isPrivate ? "Salvar demanda privada" : "Publicar demanda";
+  $("composer-visibility-note").replaceChildren(badge(isPrivate ? "Publicação privada" : "Publicação pública", "neutral"), el("p", isPrivate ? "Sua demanda fica disponível apenas na sua conta." : "Sua demanda pode ser encontrada por startups, clientes e investidores."));
 }
-$("demand-form").elements.visibility.forEach((input) =>
-  input.addEventListener("change", updateDemandSubmit),
-);
-$("new-demand").addEventListener("click", (event) =>
-  run(() => showDemand(), event.currentTarget),
-);
-$("publish-cta").addEventListener("click", (event) =>
-  run(() => showDemand(), event.currentTarget),
-);
+$("demand-form").elements.visibility.forEach((input) => input.addEventListener("change", updateDemandSubmit));
+$("demand-form").elements.description.addEventListener("input", renderComposer);
+$("demand-tag-input").addEventListener("keydown", (event) => {
+  if (["Enter", ","].includes(event.key)) { event.preventDefault(); run(() => addDemandTag()); }
+});
+$("demand-images").addEventListener("change", (event) => {
+  run(() => addDemandImages(event.currentTarget.files)); event.currentTarget.value = "";
+});
+$("new-demand").addEventListener("click", (event) => run(() => showDemand(), event.currentTarget));
+$("publish-cta").addEventListener("click", (event) => run(() => showDemand(), event.currentTarget));
 $("demand-form").addEventListener("submit", (event) => {
   event.preventDefault();
-  const form = event.currentTarget;
   run(async () => {
-    const editing = Boolean(editingDemand);
-    const result = await api(
-      editing
-        ? "/api/v1/demands/" + editingDemand.id + "/"
-        : "/api/v1/demands/",
-      {
-        method: editing ? "PATCH" : "POST",
-        data: Object.fromEntries(new FormData(form)),
-      },
-    );
-    $("demand-dialog").close();
-    form.reset();
-    editingDemand = null;
+    if (account?.role !== "CLIENT") return;
+    const sequence = accountSequence, editing = Boolean(editingDemand), key = draftKey();
+    const result = await api(editing ? "/api/v1/demands/" + editingDemand.id + "/" : "/api/v1/demands/", {
+      method: editing ? "PATCH" : "POST", data: demandPayload(),
+    });
+    if (sequence !== accountSequence) return;
+    demandImages.filter((image) => image.file).forEach((image) => URL.revokeObjectURL(image.url));
+    demandDrafts.delete(key); demandTags = []; demandImages = []; composerInitialized = false; editingDemand = null;
+    $("demand-form").reset(); $("demand-tag-input").value = "";
+    location.hash = "demandas";
     await Promise.all([loadOwnDemands(), loadFeed()]);
-    notice(
-      editing
-        ? "Sua demanda foi atualizada."
-        : result.visibility === "PRIVATE"
-          ? "Demanda salva. Publique na vitrine quando quiser receber propostas."
-          : "Demanda publicada! Startups já podem enviar propostas.",
-    );
+    if (sequence !== accountSequence) return;
+    notice(editing ? "Sua demanda foi atualizada." : result.visibility === "PRIVATE" ? "Demanda salva. Publique quando quiser receber propostas." : "Demanda publicada! Startups já podem enviar propostas.");
   }, $("demand-submit"));
 });
 function renderOwnDemands() {

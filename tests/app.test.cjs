@@ -281,6 +281,82 @@ test("image galleries reject remote and executable URLs", () => {
   assert.equal(gallery.children[0].children[0].src, "http://localhost/api/v1/demand-images/local/");
 });
 
+test("composer validates image limits atomically and allows removing selected previews", () => {
+  const app = application();
+  app.context.valid = new Blob(["image"], { type: "image/png" });
+  app.context.invalid = new Blob(["script"], { type: "text/html" });
+  assert.throws(() => app.evaluate("addDemandImages([valid, invalid])"), /JPEG, PNG ou WebP/);
+  assert.equal(app.evaluate("demandImages.length"), 0);
+  assert.throws(() => app.evaluate("addDemandImages([valid, valid, valid, valid, valid])"), /máximo 4/);
+  app.evaluate("addDemandImages([valid])");
+  assert.equal(app.evaluate("demandImages.length"), 1);
+  const preview = app.node("demand-image-previews").children[0];
+  preview.children[1].handlers.click();
+  assert.equal(app.evaluate("demandImages.length"), 0);
+});
+
+test("composer multipart payload preserves repeated files and explicit clearing of tags/images", () => {
+  const app = application(); app.setAccount("CLIENT");
+  const form = app.node("demand-form");
+  for (const [field, value] of Object.entries({ title: "Challenge", description: "The whole problem", category_id: "category-1", visibility: "PUBLIC" })) form.elements[field].value = value;
+  app.evaluate('editingDemand = { id: "demand-1" }; demandTags = []; demandImages = []');
+  const empty = app.evaluate("demandPayload()");
+  assert.equal(empty.get("tags"), "[]");
+  assert.equal(empty.get("keep_image_ids"), "[]");
+  app.context.firstFile = new Blob(["first"], { type: "image/png" });
+  app.context.firstFile.name = "first.png";
+  app.context.secondFile = new Blob(["second"], { type: "image/jpeg" });
+  app.context.secondFile.name = "second.jpg";
+  app.evaluate('demandTags = ["logística", "tecnologia"]; demandImages = [{ id: "kept-1", url: "/api/v1/demand-images/kept-1/" }, { file: firstFile }, { file: secondFile }]');
+  const data = app.evaluate("demandPayload()");
+  assert.equal(data.get("title"), "Challenge");
+  assert.deepEqual(JSON.parse(data.get("tags")), ["logística", "tecnologia"]);
+  assert.deepEqual(JSON.parse(data.get("keep_image_ids")), ["kept-1"]);
+  assert.equal(data.getAll("images").length, 2);
+  assert.equal(data.getAll("images")[0].name, "first.png");
+});
+
+test("composer tags enforce count, length and case-insensitive duplicates", () => {
+  const app = application();
+  app.node("demand-tag-input").value = "#Logística";
+  app.evaluate("addDemandTag()");
+  app.node("demand-tag-input").value = "logística";
+  app.evaluate("addDemandTag()");
+  assert.equal(app.evaluate("demandTags.length"), 1);
+  app.node("demand-tag-input").value = "x".repeat(31);
+  assert.throws(() => app.evaluate("addDemandTag()"), /30 caracteres/);
+  app.evaluate('demandTags = ["a","b","c","d","e","f","g","h"]');
+  app.node("demand-tag-input").value = "another";
+  assert.throws(() => app.evaluate("addDemandTag()"), /máximo 8/);
+});
+
+test("composer draft survives navigating away and reopening the publication page", async () => {
+  const app = application(); app.setAccount("CLIENT");
+  app.evaluate('categories = [{ id: "cat-1", slug: "technology", name: "Tecnologia" }]');
+  await app.evaluate("showDemand()");
+  app.node("demand-form").elements.title.value = "Unpublished challenge";
+  app.node("demand-form").elements.description.value = "Keep this description";
+  app.node("demand-form").elements.category_id.value = "cat-1";
+  app.evaluate('demandTags = ["draft"]; currentRoute = "publicar-demanda"; saveDemandDraft()');
+  await app.evaluate("showDemand()");
+  assert.equal(app.node("demand-form").elements.title.value, "Unpublished challenge");
+  assert.equal(app.node("demand-form").elements.description.value, "Keep this description");
+  assert.equal(app.evaluate("demandTags[0]"), "draft");
+  app.evaluate("clearPrivateState()");
+  assert.equal(app.evaluate("demandDrafts.size"), 0);
+  assert.equal(app.evaluate("demandTags.length"), 0);
+});
+
+test("api sends FormData unchanged without forcing the JSON content type", async () => {
+  const app = application(), calls = [];
+  app.context.fetch = async (url, options) => { calls.push({ url, options }); return { status: 201, ok: true, json: async () => ({ id: "demand-1" }) }; };
+  app.context.payload = new FormData(); app.context.payload.append("title", "Multipart challenge");
+  await app.evaluate('api("/api/v1/demands/", {method:"POST",data:payload})');
+  assert.equal(calls[0].options.body, app.context.payload);
+  assert.equal(calls[0].options.headers["Content-Type"], undefined);
+  assert.equal(calls[0].options.credentials, "same-origin");
+});
+
 test("public profile history is credential-independent and stale profile responses are ignored", async () => {
   const app = application(), pending = deferred(), calls = [];
   app.context.mockApi = (path, options) => {
@@ -296,4 +372,17 @@ test("public profile history is credential-independent and stale profile respons
   assert.doesNotMatch(app.node("public-profile-header").textContent, /Older client/);
   assert.ok(calls.every((call) => call.options.publicRead === true));
   assert.equal(app.evaluate("publicProfileKey"), "startup/startup-2");
+});
+
+test("tutorials remain confined to overview and publishing is a dedicated view", () => {
+  const app = application(); app.setAccount("CLIENT");
+  app.evaluate('composerInitialized = true; location.hash = "#publicar-demanda"; route()');
+  assert.equal(app.node("publish-view").hidden, false);
+  assert.equal(app.node("how-view").hidden, true);
+  assert.equal(app.node("market-view").hidden, true);
+  app.evaluate('location.hash = "#vitrine"; route()');
+  assert.equal(app.node("how-view").hidden, true);
+  assert.equal(app.node("publish-view").hidden, true);
+  app.evaluate('location.hash = "#inicio"; route()');
+  assert.equal(app.node("how-view").hidden, false);
 });
