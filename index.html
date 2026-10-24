@@ -56,6 +56,9 @@
           ><span data-icon="layers"></span
           ><span id="workspace-nav-label">Propostas e entregas</span></a
         >
+        <a href="#matchmaking" data-route="matchmaking"
+          ><span data-icon="rocket"></span>Matchmaking<span class="nav-tag">IA/Score</span></a
+        >
         <a href="#como-funciona" data-route="como-funciona"
           ><span data-icon="route"></span>Como funciona</a
         >
@@ -472,6 +475,40 @@
           <button class="btn btn-outline" id="more-solutions" hidden>
             Carregar mais propostas
           </button>
+        </section>
+        <section
+          id="matchmaking-view"
+          class="view"
+          hidden
+          aria-labelledby="matchmaking-title"
+        >
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">SCORE DE TRAÇÃO PRÁTICA (S_MATCH)</p>
+              <h1 id="matchmaking-title">
+                Matchmaking Inteligente<span class="yellow-text">.</span>
+              </h1>
+              <p id="matchmaking-subtitle">
+                Oportunidades e conexões ranqueadas por resultados e evidências reais.
+              </p>
+            </div>
+            <button class="btn btn-outline btn-small" id="refresh-matchmaking">
+              <span data-icon="refresh"></span>Atualizar
+            </button>
+          </div>
+          <div class="matchmaking-formula-banner surface">
+            <span class="mini-star">✦</span>
+            <div>
+              <strong>Algoritmo Baseado em Testes Auditados:</strong>
+              <code>S_match = (0.25 × C_setor) + (0.35 × M_auditoria) + (0.25 × E_economia) + (0.15 × T_maturidade)</code>
+              <p class="muted">Pontuação de 0 a 100 baseada em aderência setorial, notas de avaliação real e histórico de testes concluídos.</p>
+            </div>
+          </div>
+          <div id="matchmaking-context-tabs" class="feed-filters" style="margin-top:16px;">
+            <button class="chip active" id="tab-match-all" data-match-tab="traction">Vitrine de Tração</button>
+            <button class="chip" id="tab-match-role" data-match-tab="role" hidden>Recomendações para Você</button>
+          </div>
+          <div id="matchmaking-results" class="workspace-grid" style="margin-top:20px;"></div>
         </section>
         <section id="how-view" class="view" hidden aria-labelledby="how-title">
           <div class="page-heading">

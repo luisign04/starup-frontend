@@ -2163,3 +2163,70 @@ label small,
 body:has(dialog[open]) {
   overflow: hidden;
 }
+
+/* Matchmaking Styles */
+.matchmaking-formula-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  background: #fff;
+  border-left: 4px solid var(--yellow);
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  margin-top: 12px;
+}
+.matchmaking-formula-banner code {
+  display: block;
+  font-family: monospace;
+  background: #f4f4ee;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin: 6px 0;
+  font-size: 13px;
+  color: #2b301c;
+}
+.match-score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 13px;
+  background: #eef8eb;
+  color: #1b6320;
+  border: 1px solid #c7e8c4;
+}
+.match-score-badge.badge-high {
+  background: #e8f5e9;
+  color: #1b5e20;
+  border-color: #a5d6a7;
+}
+.match-score-badge.badge-mid {
+  background: #fffde7;
+  color: #795548;
+  border-color: #fff59d;
+}
+.match-seal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #fff9c4;
+  color: #5d4037;
+  border: 1px solid #fbc02d;
+}
+.match-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  font-size: 12px;
+  color: var(--muted);
+}
+

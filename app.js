@@ -306,8 +306,9 @@ function renderAccount() {
         : "Acompanhe suas conexões, do primeiro contato à entrega.";
     $("profile-form").hidden = account.role !== "STARTUP";
     if (account.role === "STARTUP")
-      ["name", "description", "website"].forEach((field) => {
-        $("profile-form").elements[field].value = account.profile[field] || "";
+      ["name", "description", "website", "category"].forEach((field) => {
+        if ($("profile-form").elements[field])
+          $("profile-form").elements[field].value = account.profile[field] || "";
       });
     $("home-title").replaceChildren(
       document.createTextNode("Boas conexões começam por aqui"),
@@ -352,6 +353,7 @@ const routeNames = {
   vitrine: "Explorar vitrine",
   demandas: "Minhas demandas",
   propostas: "Propostas e entregas",
+  matchmaking: "Matchmaking Inteligente",
   "como-funciona": "Como funciona",
   conta: "Minha conta",
 };
@@ -377,6 +379,7 @@ function route() {
   $("market-view").hidden = !market;
   $("demands-view").hidden = currentRoute !== "demandas";
   $("workspace-view").hidden = currentRoute !== "propostas";
+  $("matchmaking-view").hidden = currentRoute !== "matchmaking";
   $("how-view").hidden = currentRoute !== "como-funciona";
   $("account-view").hidden = currentRoute !== "conta";
   document.querySelectorAll("[data-route]").forEach((node) => {
@@ -401,6 +404,8 @@ function route() {
     run(() => loadOwnDemands());
   if (currentRoute === "propostas" && !workspaceLoaded)
     run(() => loadWorkspace());
+  if (currentRoute === "matchmaking")
+    run(() => loadMatchmaking());
 }
 window.addEventListener("hashchange", () => {
   route();
@@ -1597,6 +1602,163 @@ $("disable-push").addEventListener("click", (event) =>
     notice("Notificações desativadas.");
   }, event.currentTarget),
 );
+
+let activeMatchTab = "traction";
+let matchmakingData = [];
+
+async function loadMatchmaking() {
+  const isStartup = account?.role === "STARTUP";
+  const isClient = account?.role === "CLIENT";
+
+  $("tab-match-role").hidden = !isStartup;
+  if (!isStartup && activeMatchTab === "role") {
+    activeMatchTab = "traction";
+  }
+
+  $("tab-match-all").classList.toggle("active", activeMatchTab === "traction");
+  $("tab-match-role").classList.toggle("active", activeMatchTab === "role");
+
+  if (activeMatchTab === "role" && isStartup) {
+    $("matchmaking-subtitle").textContent =
+      "Demandas abertas com maior compatibilidade para sua categoria (" +
+      (account.profile.category || "não definida") + ").";
+    matchmakingData = await api("/api/v1/matchmaking/recommended-demands/");
+  } else {
+    $("matchmaking-subtitle").textContent =
+      "Startups ranqueadas com maior índice de tração prática e testes auditados.";
+    matchmakingData = await api("/api/v1/matchmaking/traction-showcase/");
+  }
+
+  renderMatchmaking();
+}
+
+function renderMatchmaking() {
+  const container = $("matchmaking-results");
+  container.replaceChildren();
+
+  if (!matchmakingData.length) {
+    container.append(
+      emptyState(
+        "Nenhuma conexão calculada no momento.",
+        activeMatchTab === "role"
+          ? "Configure sua categoria no perfil ou aguarde novas demandas abertas."
+          : "Nenhuma startup com tração registrada ainda.",
+        "rocket",
+      ),
+    );
+    return;
+  }
+
+  matchmakingData.forEach((item) => {
+    const card = el("article", undefined, "workspace-card");
+    const top = el("div", undefined, "card-top");
+
+    const badgeClass =
+      item.score >= 75
+        ? "match-score-badge badge-high"
+        : item.score >= 50
+          ? "match-score-badge badge-mid"
+          : "match-score-badge";
+
+    const scoreBadge = el("span", undefined, badgeClass);
+    scoreBadge.append(
+      icon("star"),
+      document.createTextNode("Score: " + item.score + "%"),
+    );
+
+    const rightBadges = el("div");
+    rightBadges.style.display = "flex";
+    rightBadges.style.gap = "8px";
+    rightBadges.style.alignItems = "center";
+    rightBadges.append(scoreBadge);
+
+    if (item.has_seal) {
+      const seal = el("span", "✓ Teste Auditado", "match-seal-badge");
+      rightBadges.append(seal);
+    }
+
+    if (activeMatchTab === "role") {
+      // It's a recommended demand for a startup
+      const title = el("h3", item.title);
+      top.append(title, rightBadges);
+
+      const catBadge = badge(item.category_name || "Geral", "neutral");
+      const desc = el("p", item.description);
+
+      const metrics = el("div", undefined, "match-metrics-grid");
+      metrics.innerHTML = `
+        <div>Aderência Setorial: <strong>${Math.round(item.details.c_setor * 100)}%</strong></div>
+        <div>Índice Auditoria: <strong>${Math.round(item.details.m_auditoria * 100)}%</strong></div>
+        <div>Eficiência Econômica: <strong>${Math.round(item.details.e_economia * 100)}%</strong></div>
+        <div>Maturidade de Testes: <strong>${Math.round(item.details.t_maturidade * 100)}%</strong></div>
+      `;
+
+      const actions = el("div");
+      actions.style.marginTop = "14px";
+      actions.append(
+        action(
+          "Enviar proposta",
+          () => {
+            showSolutionDialog(item.demand_id);
+          },
+          "btn btn-dark btn-small",
+          "arrow",
+        ),
+      );
+
+      card.append(top, catBadge, desc, metrics, actions);
+    } else {
+      // It's a startup traction card
+      const name = el("h3", item.startup_name);
+      top.append(name, rightBadges);
+
+      const cat = badge(
+        item.startup_category
+          ? "Setor: " + item.startup_category
+          : "Sem categoria",
+        "neutral",
+      );
+      const desc = el(
+        "p",
+        item.startup_description || "Startup focada em resolução de desafios reais.",
+      );
+
+      const stats = el("p", undefined, "muted");
+      stats.style.fontSize = "13px";
+      stats.textContent =
+        "Avaliação média: " +
+        (item.average_rating ? item.average_rating.toFixed(1) + " ★" : "Sem notas ainda") +
+        " · Testes concluídos: " +
+        item.completed_tests;
+
+      const metrics = el("div", undefined, "match-metrics-grid");
+      metrics.innerHTML = `
+        <div>Aderência Setorial: <strong>${Math.round(item.details.c_setor * 100)}%</strong></div>
+        <div>Índice Auditoria: <strong>${Math.round(item.details.m_auditoria * 100)}%</strong></div>
+        <div>Eficiência Econômica: <strong>${Math.round(item.details.e_economia * 100)}%</strong></div>
+        <div>Maturidade de Testes: <strong>${Math.round(item.details.t_maturidade * 100)}%</strong></div>
+      `;
+
+      card.append(top, cat, desc, stats, metrics);
+    }
+
+    container.append(card);
+  });
+}
+
+$("tab-match-all").addEventListener("click", () => {
+  activeMatchTab = "traction";
+  run(() => loadMatchmaking());
+});
+
+$("tab-match-role").addEventListener("click", () => {
+  activeMatchTab = "role";
+  run(() => loadMatchmaking());
+});
+
+$("refresh-matchmaking").addEventListener("click", () => {
+  run(() => loadMatchmaking());
+});
 function networkState() {
   $("network-status").hidden = navigator.onLine;
   $("network-status").textContent =
