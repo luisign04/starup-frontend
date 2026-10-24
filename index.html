@@ -499,16 +499,17 @@
           <div class="matchmaking-formula-banner surface">
             <span class="mini-star">✦</span>
             <div>
-              <strong>Algoritmo Baseado em Testes Auditados:</strong>
+              <strong>Pontuação baseada em entregas avaliadas:</strong>
               <code>S_match = (0.25 × C_setor) + (0.35 × M_auditoria) + (0.25 × E_economia) + (0.15 × T_maturidade)</code>
-              <p class="muted">Pontuação de 0 a 100 baseada em aderência setorial, notas de avaliação real e histórico de testes concluídos.</p>
+              <p class="muted">Pontuação de 0 a 100 baseada em compatibilidade de setor, avaliações e entregas concluídas. O impacto econômico é estimado pelo histórico de entregas; a pontuação não representa uma auditoria independente.</p>
             </div>
           </div>
-          <div id="matchmaking-context-tabs" class="feed-filters" style="margin-top:16px;">
-            <button class="chip active" id="tab-match-all" data-match-tab="traction">Vitrine de Tração</button>
-            <button class="chip" id="tab-match-role" data-match-tab="role" hidden>Recomendações para Você</button>
+          <div id="matchmaking-context-tabs" class="tabs standalone-tabs" role="group" aria-label="Escolher contexto do matchmaking">
+            <button class="tab active" id="tab-match-all" data-match-tab="traction" aria-pressed="true">Vitrine de Tração</button>
+            <button class="tab" id="tab-match-role" data-match-tab="role" aria-pressed="false" hidden>Recomendações para Você</button>
+            <button class="tab" id="tab-match-demand" data-match-tab="demand" aria-pressed="false" hidden>Startups para sua demanda</button>
           </div>
-          <div id="matchmaking-results" class="workspace-grid" style="margin-top:20px;"></div>
+          <div id="matchmaking-results" class="workspace-grid" aria-live="polite" style="margin-top:20px;"></div>
         </section>
         <section id="how-view" class="view" hidden aria-labelledby="how-title">
           <div class="page-heading">
@@ -629,6 +630,9 @@
                     type="url"
                     placeholder="https://sua-startup.com.br"
                     maxlength="200" /></label
+                ><label>Setor da startup<select name="category" id="profile-category">
+                  <option value="">Selecione um setor (opcional)</option>
+                </select><small>Escolha o setor para melhorar a compatibilidade das recomendações.</small></label
                 ><button class="btn btn-dark">
                   Salvar alterações <span data-icon="check"></span>
                 </button>
@@ -816,6 +820,9 @@
               maxlength="200"
               placeholder="https://sua-startup.com.br"
           /></label>
+          <label>Setor da startup<select name="category" id="registration-category">
+            <option value="">Selecione um setor (opcional)</option>
+          </select></label>
         </div>
         <div data-registration="INVESTOR" class="privacy-note" hidden>
           <span data-icon="shield"></span>

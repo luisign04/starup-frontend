@@ -87,6 +87,7 @@ const fieldLabels = {
   title: "Título",
   description: "Descrição",
   category_id: "Categoria",
+  category: "Setor da startup",
   website: "Site",
   proposal: "Proposta",
   delivery: "Entrega",
@@ -112,12 +113,17 @@ let categories = [],
   editingDemand = null,
   confirmHandler = null,
   feedSequence = 0,
-  accountSequence = 0;
+  accountSequence = 0,
+  accountRestoreSequence = 0;
 let currentRoute = "inicio",
   workspaceSequence = 0,
   ownDemandSequence = 0;
 let workspaceLoaded = false,
   ownDemandsLoaded = false;
+let activeMatchTab = "traction",
+  matchmakingData = [],
+  matchmakingSequence = 0,
+  matchingDemand = null;
 const demandTitles = new Map();
 const PUSH_STORAGE_KEY = "starup-push-id";
 try {
@@ -305,11 +311,12 @@ function renderAccount() {
         ? "Escolha uma solução para seus desafios e acompanhe os resultados."
         : "Acompanhe suas conexões, do primeiro contato à entrega.";
     $("profile-form").hidden = account.role !== "STARTUP";
-    if (account.role === "STARTUP")
+    if (account.role === "STARTUP") {
+      renderStartupCategories();
       ["name", "description", "website", "category"].forEach((field) => {
-        if ($("profile-form").elements[field])
-          $("profile-form").elements[field].value = account.profile[field] || "";
+        $("profile-form").elements[field].value = account.profile[field] || "";
       });
+    }
     $("home-title").replaceChildren(
       document.createTextNode("Boas conexões começam por aqui"),
       el("span", ".", "yellow-text"),
@@ -322,11 +329,17 @@ function renderAccount() {
   }
 }
 async function restoreAccount() {
+  const sequence = accountSequence,
+    requestSequence = ++accountRestoreSequence;
+  const isCurrent = () => sequence === accountSequence &&
+    requestSequence === accountRestoreSequence;
   try {
     const restored = await api("/api/v1/me/");
+    if (!isCurrent()) return;
     if (account && account.id !== restored.id) clearPrivateState();
     account = restored;
   } catch (error) {
+    if (!isCurrent()) return;
     if ([401, 403].includes(error.status)) {
       // A first anonymous visit is not a logout. Clearing here races the public
       // feed and removes its offline copy immediately after it is saved.
@@ -488,6 +501,7 @@ function showAuth(mode = "login", role) {
       '[name="role"][value="' + role + '"]',
     ).checked = true;
   registrationRole();
+  if (mode === "register") run(() => loadCategories());
   showDialog($("auth-dialog"));
 }
 document
@@ -575,9 +589,21 @@ $("register-form").addEventListener("submit", (event) => {
 });
 function clearPrivateState() {
   accountSequence++;
+  accountRestoreSequence++;
   workspaceSequence++;
   ownDemandSequence++;
+  matchmakingSequence++;
+  activeMatchTab = "traction";
+  matchmakingData = [];
+  matchingDemand = null;
+  $("matchmaking-results").replaceChildren();
+  $("matchmaking-results").removeAttribute("aria-busy");
+  $("tab-match-role").hidden = true;
+  $("tab-match-demand").hidden = true;
+  $("matchmaking-subtitle").textContent =
+    "Startups ordenadas por avaliações de entregas e histórico de testes concluídos.";
   account = null;
+  updateMatchmakingTabs();
   solutions = [];
   ownDemands = [];
   nextSolutions = null;
@@ -600,6 +626,7 @@ function clearPrivateState() {
   $("own-demands").replaceChildren();
   $("workspace-summary").replaceChildren();
   $("profile-form").reset();
+  renderStartupCategories();
   [
     "profile-name",
     "profile-email",
@@ -945,8 +972,10 @@ async function openPost(post) {
         form.addEventListener("submit", (event) => {
           event.preventDefault();
           run(async () => {
+            const sequence = accountSequence;
+            let submitted;
             try {
-              await api("/api/v1/solutions/", {
+              submitted = await api("/api/v1/solutions/", {
                 method: "POST",
                 data: { demand_id: c.id, proposal: input.value },
               });
@@ -957,11 +986,28 @@ async function openPost(post) {
                 );
               throw error;
             }
+            if (sequence !== accountSequence || account?.role !== "STARTUP") return;
+            // Update immediately, including while the following network refresh is pending.
+            solutions = [...solutions.filter((solution) => solution.demand_id !== c.id), submitted];
+            if (activeMatchTab === "role") {
+              matchmakingSequence++;
+              matchmakingData = matchmakingData.filter((item) => item.demand_id !== c.id);
+              renderMatchmaking();
+              $("matchmaking-results").removeAttribute("aria-busy");
+            }
             $("detail-dialog").close();
-            await loadWorkspace();
-            notice(
-              "Proposta enviada. Acompanhe os próximos passos em Propostas e entregas.",
-            );
+            try {
+              await loadWorkspace();
+              if (sequence !== accountSequence) return;
+              if (currentRoute === "matchmaking" && activeMatchTab === "role")
+                await loadMatchmaking();
+            } catch {
+              if (sequence === accountSequence)
+                notice("Proposta enviada. Atualize as conexões para carregar os dados mais recentes.", true);
+              return;
+            }
+            if (sequence === accountSequence)
+              notice("Proposta enviada. Acompanhe os próximos passos em Propostas e entregas.");
           }, submit);
         });
         container.append(form);
@@ -1053,13 +1099,31 @@ async function openPost(post) {
   }
   showDialog($("detail-dialog"));
 }
+function renderStartupCategories() {
+  ["profile-category", "registration-category"].forEach((id) => {
+    const select = $(id), previous = select.value;
+    const saved = id === "profile-category" ? account?.profile?.category : previous;
+    select.replaceChildren(
+      new Option("Selecione um setor (opcional)", ""),
+      ...categories.filter((category) => category.slug.length <= 40)
+        .map((category) => new Option(category.name, category.slug)),
+    );
+    // Preserve legacy profile values until the owner selects a current category.
+    if (saved && ![...select.options].some((option) => option.value === saved))
+      select.add(new Option(saved, saved));
+    select.value = saved || "";
+  });
+}
 async function loadCategories() {
-  if (categories.length) return;
-  categories = await allPages("/api/v1/categories/", { publicRead: true });
+  if (!categories.length)
+    categories = await allPages("/api/v1/categories/", { publicRead: true });
+  renderStartupCategories();
+  const selectedCategory = $("category-select").value;
   $("category-select").replaceChildren(
     new Option("Selecione uma categoria", ""),
     ...categories.map((c) => new Option(c.name, c.id)),
   );
+  $("category-select").value = selectedCategory;
 }
 async function showDemand(demand = null) {
   if (!account) {
@@ -1149,6 +1213,9 @@ function renderOwnDemands() {
       );
       const controls = el("div", undefined, "card-actions");
       if (demand.status === "OPEN") {
+        controls.append(
+          action("Encontrar startups", () => showDemandMatches(demand), "btn btn-dark btn-small", "star"),
+        );
         controls.append(
           action(
             "Editar",
@@ -1522,7 +1589,7 @@ async function loadPrivateState() {
   if (account && ["CLIENT", "STARTUP"].includes(account.role))
     await Promise.all([
       loadWorkspace(),
-      account.role === "CLIENT" ? loadOwnDemands() : Promise.resolve(),
+      account.role === "CLIENT" ? loadOwnDemands() : loadCategories(),
     ]);
 }
 $("refresh-workspace").addEventListener("click", (event) =>
@@ -1603,162 +1670,140 @@ $("disable-push").addEventListener("click", (event) =>
   }, event.currentTarget),
 );
 
-let activeMatchTab = "traction";
-let matchmakingData = [];
-
-async function loadMatchmaking() {
+function updateMatchmakingTabs() {
   const isStartup = account?.role === "STARTUP";
-  const isClient = account?.role === "CLIENT";
-
   $("tab-match-role").hidden = !isStartup;
-  if (!isStartup && activeMatchTab === "role") {
+  $("tab-match-demand").hidden = !matchingDemand || account?.role !== "CLIENT";
+  if ((activeMatchTab === "role" && !isStartup) ||
+      (activeMatchTab === "demand" && (!matchingDemand || account?.role !== "CLIENT")))
     activeMatchTab = "traction";
-  }
-
-  $("tab-match-all").classList.toggle("active", activeMatchTab === "traction");
-  $("tab-match-role").classList.toggle("active", activeMatchTab === "role");
-
-  if (activeMatchTab === "role" && isStartup) {
+  [["tab-match-all", "traction"], ["tab-match-role", "role"], ["tab-match-demand", "demand"]]
+    .forEach(([id, value]) => {
+      $(id).classList.toggle("active", activeMatchTab === value);
+      $(id).setAttribute("aria-pressed", String(activeMatchTab === value));
+    });
+}
+function showDemandMatches(demand) {
+  if (account?.role !== "CLIENT") return;
+  matchingDemand = { id: demand.id, title: demand.title };
+  activeMatchTab = "demand";
+  if (currentRoute === "matchmaking") return loadMatchmaking();
+  location.hash = "matchmaking";
+}
+async function loadMatchmaking() {
+  updateMatchmakingTabs();
+  const sequence = accountSequence,
+    requestSequence = ++matchmakingSequence,
+    tab = activeMatchTab,
+    container = $("matchmaking-results");
+  const isCurrent = () => sequence === accountSequence &&
+    requestSequence === matchmakingSequence && tab === activeMatchTab;
+  matchmakingData = [];
+  container.replaceChildren(el("p", "Calculando conexões…", "muted"));
+  container.setAttribute("aria-busy", "true");
+  let path = "/api/v1/matchmaking/traction-showcase/";
+  if (tab === "role") {
+    const category = categories.find((item) => item.slug === account.profile.category);
     $("matchmaking-subtitle").textContent =
-      "Demandas abertas com maior compatibilidade para sua categoria (" +
-      (account.profile.category || "não definida") + ").";
-    matchmakingData = await api("/api/v1/matchmaking/recommended-demands/");
+      "Demandas abertas, ordenadas por compatibilidade com o setor da sua startup (" +
+      (category?.name || account.profile.category || "não definido") +
+      "). A pontuação combina o setor da demanda com o histórico da sua startup.";
+    path = "/api/v1/matchmaking/recommended-demands/";
+  } else if (tab === "demand") {
+    $("matchmaking-subtitle").textContent = "Startups compatíveis com sua demanda: " + matchingDemand.title;
+    path = "/api/v1/matchmaking/demands/" + matchingDemand.id + "/";
   } else {
     $("matchmaking-subtitle").textContent =
-      "Startups ranqueadas com maior índice de tração prática e testes auditados.";
-    matchmakingData = await api("/api/v1/matchmaking/traction-showcase/");
+      "Startups ordenadas por avaliações de entregas e histórico de testes concluídos.";
   }
-
-  renderMatchmaking();
+  try {
+    const result = await api(path, { publicRead: tab === "traction" });
+    if (!isCurrent()) return;
+    matchmakingData = result;
+    renderMatchmaking();
+  } catch (error) {
+    if (!isCurrent()) return;
+    container.replaceChildren(emptyState(
+      "Não foi possível carregar as conexões.",
+      "Conecte-se à internet e use Atualizar para tentar novamente.", "refresh",
+    ));
+    throw error;
+  } finally {
+    if (isCurrent()) container.removeAttribute("aria-busy");
+  }
 }
-
+function matchMetrics(details) {
+  const metrics = el("div", undefined, "match-metrics-grid");
+  [["Aderência setorial", "c_setor"], ["Qualidade das avaliações", "m_auditoria"],
+    ["Estimativa de impacto", "e_economia"], ["Maturidade dos testes", "t_maturidade"]]
+    .forEach(([label, field]) => {
+      const metric = el("div");
+      metric.append(document.createTextNode(label + ": "), el("strong", Math.round(details[field] * 100) + "%"));
+      metrics.append(metric);
+    });
+  return metrics;
+}
+async function openRecommendedDemand(id) {
+  if (account?.role !== "STARTUP") return;
+  const sequence = accountSequence;
+  // Re-read current visibility/status before opening the existing proposal form.
+  const demand = await api("/api/v1/demands/" + id + "/");
+  if (sequence !== accountSequence || account?.role !== "STARTUP") return;
+  return openPost({ kind: "DEMAND", content: demand });
+}
 function renderMatchmaking() {
   const container = $("matchmaking-results");
   container.replaceChildren();
-
   if (!matchmakingData.length) {
-    container.append(
-      emptyState(
-        "Nenhuma conexão calculada no momento.",
-        activeMatchTab === "role"
-          ? "Configure sua categoria no perfil ou aguarde novas demandas abertas."
-          : "Nenhuma startup com tração registrada ainda.",
-        "rocket",
-      ),
-    );
+    container.append(emptyState(
+      "Nenhuma conexão calculada no momento.",
+      activeMatchTab === "role"
+        ? "Escolha um setor no perfil para melhorar as recomendações ou aguarde novas demandas abertas."
+        : "Nenhuma startup disponível para estes critérios.", "rocket",
+    ));
     return;
   }
-
   matchmakingData.forEach((item) => {
-    const card = el("article", undefined, "workspace-card");
-    const top = el("div", undefined, "card-top");
-
-    const badgeClass =
-      item.score >= 75
-        ? "match-score-badge badge-high"
-        : item.score >= 50
-          ? "match-score-badge badge-mid"
-          : "match-score-badge";
-
+    const card = el("article", undefined, "feed-card matchmaking-card"),
+      top = el("div", undefined, "card-top"),
+      rightBadges = el("div", undefined, "match-badges");
+    const badgeClass = item.score >= 75 ? "match-score-badge badge-high"
+      : item.score >= 50 ? "match-score-badge badge-mid" : "match-score-badge";
     const scoreBadge = el("span", undefined, badgeClass);
-    scoreBadge.append(
-      icon("star"),
-      document.createTextNode("Score: " + item.score + "%"),
-    );
-
-    const rightBadges = el("div");
-    rightBadges.style.display = "flex";
-    rightBadges.style.gap = "8px";
-    rightBadges.style.alignItems = "center";
+    scoreBadge.append(icon("star"), document.createTextNode("Score: " + item.score + "%"));
     rightBadges.append(scoreBadge);
-
-    if (item.has_seal) {
-      const seal = el("span", "✓ Teste Auditado", "match-seal-badge");
-      rightBadges.append(seal);
-    }
-
+    if (item.has_seal)
+      rightBadges.append(el("span", "✓ Entrega bem avaliada", "match-seal-badge"));
     if (activeMatchTab === "role") {
-      // It's a recommended demand for a startup
-      const title = el("h3", item.title);
-      top.append(title, rightBadges);
-
-      const catBadge = badge(item.category_name || "Geral", "neutral");
-      const desc = el("p", item.description);
-
-      const metrics = el("div", undefined, "match-metrics-grid");
-      metrics.innerHTML = `
-        <div>Aderência Setorial: <strong>${Math.round(item.details.c_setor * 100)}%</strong></div>
-        <div>Índice Auditoria: <strong>${Math.round(item.details.m_auditoria * 100)}%</strong></div>
-        <div>Eficiência Econômica: <strong>${Math.round(item.details.e_economia * 100)}%</strong></div>
-        <div>Maturidade de Testes: <strong>${Math.round(item.details.t_maturidade * 100)}%</strong></div>
-      `;
-
-      const actions = el("div");
-      actions.style.marginTop = "14px";
-      actions.append(
-        action(
-          "Enviar proposta",
-          () => {
-            showSolutionDialog(item.demand_id);
-          },
-          "btn btn-dark btn-small",
-          "arrow",
-        ),
-      );
-
-      card.append(top, catBadge, desc, metrics, actions);
+      top.append(el("h3", item.title), rightBadges);
+      const actions = el("div", undefined, "card-actions");
+      const submitted = solutions.some((solution) => solution.demand_id === item.demand_id);
+      actions.append(action(submitted ? "Ver proposta enviada" : "Enviar proposta",
+        () => openRecommendedDemand(item.demand_id), "btn btn-dark btn-small", "arrow"));
+      card.append(top, badge(item.category_name || "Geral", "neutral"),
+        el("p", item.description, "card-description"), matchMetrics(item.details), actions);
     } else {
-      // It's a startup traction card
-      const name = el("h3", item.startup_name);
-      top.append(name, rightBadges);
-
-      const cat = badge(
-        item.startup_category
-          ? "Setor: " + item.startup_category
-          : "Sem categoria",
-        "neutral",
-      );
-      const desc = el(
-        "p",
-        item.startup_description || "Startup focada em resolução de desafios reais.",
-      );
-
-      const stats = el("p", undefined, "muted");
-      stats.style.fontSize = "13px";
-      stats.textContent =
-        "Avaliação média: " +
-        (item.average_rating ? item.average_rating.toFixed(1) + " ★" : "Sem notas ainda") +
-        " · Testes concluídos: " +
-        item.completed_tests;
-
-      const metrics = el("div", undefined, "match-metrics-grid");
-      metrics.innerHTML = `
-        <div>Aderência Setorial: <strong>${Math.round(item.details.c_setor * 100)}%</strong></div>
-        <div>Índice Auditoria: <strong>${Math.round(item.details.m_auditoria * 100)}%</strong></div>
-        <div>Eficiência Econômica: <strong>${Math.round(item.details.e_economia * 100)}%</strong></div>
-        <div>Maturidade de Testes: <strong>${Math.round(item.details.t_maturidade * 100)}%</strong></div>
-      `;
-
-      card.append(top, cat, desc, stats, metrics);
+      const heading = el("h3", item.startup_name);
+      top.append(heading, rightBadges);
+      const stats = el("p", "Avaliação média: " +
+        (item.average_rating ? Number(item.average_rating).toFixed(1) + " ★" : "Sem notas ainda") +
+        " · Testes concluídos: " + item.completed_tests, "muted");
+      const category = categories.find((category) => category.slug === item.startup_category);
+      card.append(top, badge(item.startup_category ? "Setor: " + (category?.name || item.startup_category) : "Sem setor", "neutral"),
+        el("p", item.startup_description || "Startup focada em resolução de desafios reais.", "card-description"),
+        stats, matchMetrics(item.details));
     }
-
     container.append(card);
   });
 }
-
-$("tab-match-all").addEventListener("click", () => {
-  activeMatchTab = "traction";
-  run(() => loadMatchmaking());
-});
-
-$("tab-match-role").addEventListener("click", () => {
-  activeMatchTab = "role";
-  run(() => loadMatchmaking());
-});
-
-$("refresh-matchmaking").addEventListener("click", () => {
-  run(() => loadMatchmaking());
-});
+[["tab-match-all", "traction"], ["tab-match-role", "role"], ["tab-match-demand", "demand"]]
+  .forEach(([id, tab]) => $(id).addEventListener("click", (event) => {
+    activeMatchTab = tab;
+    run(() => loadMatchmaking(), event.currentTarget);
+  }));
+$("refresh-matchmaking").addEventListener("click", (event) =>
+  run(() => loadMatchmaking(), event.currentTarget),
+);
 function networkState() {
   $("network-status").hidden = navigator.onLine;
   $("network-status").textContent =
