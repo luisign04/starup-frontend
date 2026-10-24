@@ -250,3 +250,50 @@ test("proposal completion after logout cannot repopulate recommendation state", 
   assert.equal(app.node("detail-dialog").open, false);
   assert.equal(app.node("matchmaking-results").textContent, "");
 });
+
+test("social feed renders public authors, full text, tags, images and real 1-to-5 ratings", () => {
+  const app = application();
+  app.context.post = {
+    kind: "DEMAND", published_at: "2026-10-24T10:00:00Z",
+    author_type: "CLIENT", author_id: "client-1", author_name: "Cliente público",
+    content: { id: "demand-1", title: "Um desafio completo", description: "Linha 1\n" + "Contexto real. ".repeat(50), status: "COMPLETED", tags: ["logística", "estoque"],
+      images: [{ id: "image-1", url: "/api/v1/demand-images/image-1/" }], rating: 4, selected_startup_id: "startup-1", selected_startup_name: "Startup da entrega" },
+  };
+  const card = app.evaluate("renderPost(post)");
+  assert.match(card.textContent, /Cliente público/);
+  assert.match(card.textContent, /Contexto real\. /);
+  assert.match(card.textContent, /#logística/);
+  assert.match(card.textContent, /4\/5/);
+  assert.match(card.textContent, /Startup da entrega/);
+  const descendants = (node) => [node, ...node.children.flatMap(descendants)];
+  const nodes = descendants(card);
+  assert.ok(nodes.some((node) => node.href === "#perfil/cliente/client-1"));
+  assert.ok(nodes.some((node) => node.href === "#perfil/startup/startup-1"));
+  assert.equal(nodes.find((node) => node.tagName === "IMG").src, "http://localhost/api/v1/demand-images/image-1/");
+  assert.doesNotMatch(card.textContent, /Curtir|Comentar|Compartilhamentos|seguidores/i);
+});
+
+test("image galleries reject remote and executable URLs", () => {
+  const app = application();
+  app.context.images = [{ url: "https://third-party.test/tracker.jpg" }, { url: "javascript:alert(1)" }, { url: "/api/v1/demand-images/local/" }];
+  const gallery = app.evaluate("imageGallery(images, 'Challenge')");
+  assert.equal(gallery.children.length, 1);
+  assert.equal(gallery.children[0].children[0].src, "http://localhost/api/v1/demand-images/local/");
+});
+
+test("public profile history is credential-independent and stale profile responses are ignored", async () => {
+  const app = application(), pending = deferred(), calls = [];
+  app.context.mockApi = (path, options) => {
+    calls.push({ path, options });
+    if (path.includes("clients/client-1")) return pending.promise;
+    return Promise.resolve(path.includes("demands/") ? { results: [], next: null } : { id: "startup-2", name: "Latest startup", average_rating: 5, review_count: 1, completed_count: 1, in_progress_count: 0 });
+  };
+  app.evaluate("api = mockApi");
+  const stale = app.evaluate('loadPublicProfile("cliente", "client-1")');
+  await app.evaluate('loadPublicProfile("startup", "startup-2")');
+  pending.resolve({ id: "client-1", display_name: "Older client", results: [], next: null }); await stale;
+  assert.match(app.node("public-profile-header").textContent, /Latest startup/);
+  assert.doesNotMatch(app.node("public-profile-header").textContent, /Older client/);
+  assert.ok(calls.every((call) => call.options.publicRead === true));
+  assert.equal(app.evaluate("publicProfileKey"), "startup/startup-2");
+});
