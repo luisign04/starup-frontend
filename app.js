@@ -2,6 +2,8 @@
 
 // Buildless, same-origin client. Personal data stays in memory, never localStorage.
 const $ = (id) => document.getElementById(id);
+// Base URL for API (set via Vite env variable or fallback to same origin)
+const API_BASE = (import.meta && import.meta.env && import.meta.env.VITE_API_BASE_URL) || "";
 const icons = {
   grid: '<rect x="3" y="3" width="7" height="7" rx="1.3"/><rect x="14" y="3" width="7" height="7" rx="1.3"/><rect x="3" y="14" width="7" height="7" rx="1.3"/><rect x="14" y="14" width="7" height="7" rx="1.3"/>',
   compass:
@@ -184,8 +186,10 @@ async function run(task, node) {
   }
 }
 async function api(path, { method = "GET", data, publicRead = false } = {}) {
-  const url = new URL(path, location.origin);
-  if (url.origin !== location.origin || !url.pathname.startsWith("/api/v1/"))
+  const base = API_BASE || location.origin;
+  const url = new URL(path, base);
+  // Allow only API paths under /api/v1/
+  if (!url.pathname.startsWith("/api/v1/"))
     throw new Error("Destino não permitido.");
   if (method !== "GET" && !navigator.onLine)
     throw new Error("Conecte-se à internet para concluir esta ação.");
