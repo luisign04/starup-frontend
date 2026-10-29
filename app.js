@@ -3,7 +3,7 @@
 // Buildless, same-origin client. Personal data stays in memory, never localStorage.
 const $ = (id) => document.getElementById(id);
 // Base URL for API (set via Vite env variable or fallback to same origin)
-const API_BASE = (import.meta && import.meta.env && import.meta.env.VITE_API_BASE_URL) || "";
+const API_BASE = "";
 const icons = {
   grid: '<rect x="3" y="3" width="7" height="7" rx="1.3"/><rect x="14" y="3" width="7" height="7" rx="1.3"/><rect x="3" y="14" width="7" height="7" rx="1.3"/><rect x="14" y="14" width="7" height="7" rx="1.3"/>',
   compass:
